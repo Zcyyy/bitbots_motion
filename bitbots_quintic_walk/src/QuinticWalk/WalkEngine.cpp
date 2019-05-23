@@ -296,12 +296,12 @@ void QuinticWalk::buildTrajectories(const Eigen::Vector3d& orders, bool startSte
         //trunkPos = Eigen::Rotation2Dd(-_footstep.getNext().z()).toRotationMatrix() * trunkPos;
     }
 
-    if(startStep){
+    /*if(startStep){
         // update support foot and compute odometry
         _footstep.stepFromOrders(Eigen::Vector3d());
-    }else{
+    }else{*/
         _footstep.stepFromOrders(orders);
-    }
+    //}
 
     //Reset the trajectories
     _trajs = bitbots_splines::TrajectoriesInit();
@@ -326,10 +326,10 @@ void QuinticWalk::buildTrajectories(const Eigen::Vector3d& orders, bool startSte
 
 
     //Only move the trunk on the first half cycle after a walk enable
-    if (startStep) {
+    /*if (startStep) {
         doubleSupportLength = halfPeriod;
         singleSupportLength = 0.0;
-    }
+    }*/
     //Set double support phase
     point("is_double_support",    0.0,                   1.0);
     point("is_double_support",    doubleSupportLength,   1.0);
