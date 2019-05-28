@@ -9,9 +9,9 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   humanoid_league_msgs
   dynamic_reconfigure
-  eigen_conversions
-  tf
-  tf_conversions
+  tf2
+  tf2_eigen
+  tf2_geometry_msgs
   bio_ik
   moveit_core
   moveit_ros_move_group  
@@ -48,7 +48,7 @@ generate_messages(
 catkin_package(
         INCLUDE_DIRS include
         LIBRARIES ${PROJECT_NAME}
-        CATKIN_DEPENDS humanoid_league_msgs std_msgs geometry_msgs bitbots_ik bitbots_splines message_runtime
+        CATKIN_DEPENDS humanoid_league_msgs std_msgs geometry_msgs bitbots_ik bitbots_splines message_runtime tf2 tf2_eigen tf2_geometry_msgs
         DEPENDS EIGEN3 
 )
 

@@ -12,7 +12,7 @@ QuinticWalkingNode::QuinticWalkingNode() :
     _currentOrders[2] = 0.0;
 
     _marker_id = 1;
-    _odom_broadcaster = tf::TransformBroadcaster();
+    _odom_broadcaster = tf2_ros::TransformBroadcaster();
 
     // read config
     _nh.param<double>("engineFrequency", _engineFrequency, 100.0);
@@ -116,19 +116,18 @@ void QuinticWalkingNode::calculateJointGoals() {
     _walkEngine.computeCartesianPosition(_trunkPos, _trunkAxis, _footPos, _footAxis, _isLeftSupport);
 
     // change goals from support foot based coordinate system to trunk based coordinate system
-    tf::Vector3 tf_vec;
-    tf::vectorEigenToTF(_trunkPos, tf_vec);
-    tf::Quaternion tf_quat = tf::Quaternion();
+    tf2::Vector3 tf_vec(_trunkPos.x(), _trunkPos.y(), _trunkPos.z());
+    tf2::Quaternion tf_quat;
     tf_quat.setRPY(_trunkAxis[0], _trunkAxis[1], _trunkAxis[2]);
     tf_quat.normalize();
-    tf::Transform support_foot_to_trunk(tf_quat, tf_vec);
-    tf::Transform trunk_to_support_foot_goal = support_foot_to_trunk.inverse();
+    tf2::Transform support_foot_to_trunk(tf_quat, tf_vec);
+    tf2::Transform trunk_to_support_foot_goal = support_foot_to_trunk.inverse();
 
-    tf::vectorEigenToTF(_footPos, tf_vec);
+    tf_vec = tf2::Vector3(_footPos.x(), _footPos.y(), _footPos.z());
     tf_quat.setRPY(_footAxis[0], _footAxis[1], _footAxis[2]);
     tf_quat.normalize();
-    tf::Transform support_to_flying_foot(tf_quat, tf_vec);
-    tf::Transform trunk_to_flying_foot_goal = trunk_to_support_foot_goal * support_to_flying_foot;
+    tf2::Transform support_to_flying_foot(tf_quat, tf_vec);
+    tf2::Transform trunk_to_flying_foot_goal = trunk_to_support_foot_goal * support_to_flying_foot;
 
     // call ik solver
     bool success = _bioIK_solver.solve(trunk_to_support_foot_goal, trunk_to_flying_foot_goal,
@@ -219,13 +218,13 @@ void QuinticWalkingNode::cmdVelCb(const geometry_msgs::Twist msg) {
 
 void QuinticWalkingNode::imuCb(const sensor_msgs::Imu msg) {
     if (_imuActive) {
-        // the incoming geometry_msgs::Quaternion is transformed to a tf::Quaterion
-        tf::Quaternion quat;
-        tf::quaternionMsgToTF(msg.orientation, quat);
+        // the incoming geometry_msgs::Quaternion is transformed to a tf2::Quaterion
+        tf2::Quaternion quat;
+        tf2::fromMsg(msg.orientation, quat);
 
-        // the tf::Quaternion has a method to acess roll pitch and yaw
+        // the tf2::Quaternion has a method to acess roll pitch and yaw
         double roll, pitch, yaw;
-        tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+        tf2::Matrix3x3(quat).getRPY(roll, pitch, yaw);
 
         // compute the pitch offset to the currently wanted pitch of the engine
         double wanted_pitch = _params.trunkPitch + _params.trunkPitchPCoefForward*_walkEngine.getFootstep().getNext().x()
@@ -400,8 +399,8 @@ void QuinticWalkingNode::publishOdometry() {
         trunk_to_support = _goal_state->getGlobalLinkTransform("r_sole");
     }
     Eigen::Isometry3d support_to_trunk = trunk_to_support.inverse();
-    tf::Transform tf_support_to_trunk;
-    tf::transformEigenToTF(support_to_trunk, tf_support_to_trunk);
+    tf2::Transform tf_support_to_trunk;
+    tf2::fromMsg(tf2::eigenToTransform(support_to_trunk).transform, tf_support_to_trunk);
 
     // odometry to trunk is transform to support foot * transform from support to trunk    
     double x;
@@ -417,16 +416,16 @@ void QuinticWalkingNode::publishOdometry() {
         yaw = _walkEngine.getFootstep().getRight()[2];
     }
 
-    tf::Transform supportFootTf;
-    supportFootTf.setOrigin(tf::Vector3{x, y, 0.0});
-    tf::Quaternion supportFootQuat = tf::Quaternion();
+    tf2::Transform supportFootTf;
+    supportFootTf.setOrigin(tf2::Vector3{x, y, 0.0});
+    tf2::Quaternion supportFootQuat = tf2::Quaternion();
     supportFootQuat.setRPY(0, 0, yaw);
     supportFootTf.setRotation(supportFootQuat);
-    tf::Transform odom_to_trunk = supportFootTf * tf_support_to_trunk;
-    tf::Vector3 pos = odom_to_trunk.getOrigin();
+    tf2::Transform odom_to_trunk = supportFootTf * tf_support_to_trunk;
+    tf2::Vector3 pos = odom_to_trunk.getOrigin();
     geometry_msgs::Quaternion quat_msg;
 
-    tf::quaternionTFToMsg(odom_to_trunk.getRotation().normalize(), quat_msg);
+    quat_msg = tf2::toMsg(odom_to_trunk.getRotation().normalize());
 
     ros::Time current_time = ros::Time::now();
     _odom_trans = geometry_msgs::TransformStamped();
@@ -461,8 +460,7 @@ void QuinticWalkingNode::publishOdometry() {
     _pubOdometry.publish(_odom_msg);
 }
 
-void
-QuinticWalkingNode::publishDebug(tf::Transform &trunk_to_support_foot_goal, tf::Transform &trunk_to_flying_foot_goal) {
+void QuinticWalkingNode::publishDebug(tf2::Transform& trunk_to_support_foot_goal, tf2::Transform& trunk_to_flying_foot_goal) {
     /*
     This method publishes various debug / visualization information.
     */
@@ -508,13 +506,18 @@ QuinticWalkingNode::publishDebug(tf::Transform &trunk_to_support_foot_goal, tf::
 
     // engine output
     geometry_msgs::Pose pose_msg;
-    tf::pointEigenToMsg(_footPos, pose_msg.position);
-    pose_msg.orientation = tf::createQuaternionMsgFromRollPitchYaw(_footAxis[0], _footAxis[1], _footAxis[2]);
+    pose_msg.position = tf2::toMsg(_footPos);
+    tf2::Quaternion tf_quat;
+    tf_quat.setRPY(_footAxis[0], _footAxis[1], _footAxis[2]);
+    tf_quat.normalize();
+    pose_msg.orientation = tf2::toMsg(tf_quat);
     msg.engine_fly_goal = pose_msg;
     publishMarker("engine_fly_goal", current_support_frame, pose_msg, 0, 0, 1, a);
 
-    tf::pointEigenToMsg(_trunkPos, pose_msg.position);
-    pose_msg.orientation = tf::createQuaternionMsgFromRollPitchYaw(_trunkAxis[0], _trunkAxis[1], _trunkAxis[2]);
+    pose_msg.position = tf2::toMsg(_trunkPos);
+    tf_quat.setRPY(_trunkAxis[0], _trunkAxis[1], _trunkAxis[2]);
+    tf_quat.normalize();
+    pose_msg.orientation = tf2::toMsg(tf_quat);
     msg.engine_trunk_goal = pose_msg;
     publishMarker("engine_trunk_goal", current_support_frame, pose_msg, r, g, b, a);
 
@@ -528,13 +531,12 @@ QuinticWalkingNode::publishDebug(tf::Transform &trunk_to_support_foot_goal, tf::
     publishMarker("trunk_result", "base_link", pose, r, g, b, a);
 
     // goals
-    geometry_msgs::Pose pose_support_foot_goal;
-    tf::pointTFToMsg(trunk_to_support_foot_goal.getOrigin(), pose_support_foot_goal.position);
-    tf::quaternionTFToMsg(trunk_to_support_foot_goal.getRotation(), pose_support_foot_goal.orientation);
+    Eigen::Isometry3d eigen_trunk_to_support_foot_goal = tf2::transformToEigen(tf2::toMsg(trunk_to_support_foot_goal));
+    geometry_msgs::Pose pose_support_foot_goal = tf2::toMsg(eigen_trunk_to_support_foot_goal);
     msg.support_foot_goal = pose_support_foot_goal;
-    geometry_msgs::Pose pose_fly_foot_goal;
-    tf::pointTFToMsg(trunk_to_flying_foot_goal.getOrigin(), pose_fly_foot_goal.position);
-    tf::quaternionTFToMsg(trunk_to_flying_foot_goal.getRotation(), pose_fly_foot_goal.orientation);
+    Eigen::Isometry3d eigen_trunk_to_flying_foot_goal = tf2::transformToEigen(tf2::toMsg(trunk_to_flying_foot_goal));
+    geometry_msgs::Pose pose_fly_foot_goal = tf2::toMsg(eigen_trunk_to_flying_foot_goal);
+
     msg.fly_foot_goal = pose_fly_foot_goal;
     if (is_left_support) {
         msg.left_foot_goal = pose_support_foot_goal;
@@ -548,10 +550,10 @@ QuinticWalkingNode::publishDebug(tf::Transform &trunk_to_support_foot_goal, tf::
 
     // IK results     
     geometry_msgs::Pose pose_left_result;
-    tf::poseEigenToMsg(_goal_state->getGlobalLinkTransform("l_sole"), pose_left_result);
+    pose_left_result = tf2::toMsg (_goal_state->getGlobalLinkTransform("l_sole"));
     msg.left_foot_ik_result = pose_left_result;
     geometry_msgs::Pose pose_right_result;
-    tf::poseEigenToMsg(_goal_state->getGlobalLinkTransform("r_sole"), pose_right_result);
+    pose_right_result = tf2::toMsg (_goal_state->getGlobalLinkTransform("r_sole"));
     msg.right_foot_ik_result = pose_right_result;
     if (is_left_support) {
         msg.support_foot_ik_result = pose_left_result;
@@ -564,39 +566,39 @@ QuinticWalkingNode::publishDebug(tf::Transform &trunk_to_support_foot_goal, tf::
     publishMarker("ik_right", "base_link", pose_right_result, 1, 0, 0, 1);
 
     // IK offsets
-    tf::Vector3 support_off;
-    tf::Vector3 fly_off;
-    tf::Vector3 tf_vec_left;
-    tf::Vector3 tf_vec_right;
-    tf::vectorEigenToTF(_goal_state->getGlobalLinkTransform("l_sole").translation(), tf_vec_left);
-    tf::vectorEigenToTF(_goal_state->getGlobalLinkTransform("r_sole").translation(), tf_vec_right);
+    tf2::Vector3 support_off;
+    tf2::Vector3 fly_off;
+    tf2::Vector3 tf_vec_left;
+    tf2::Vector3 tf_vec_right;
+    Eigen::Vector3d eigen_vec_left = _goal_state->getGlobalLinkTransform("l_sole").translation();
+    tf_vec_left = tf2::Vector3(eigen_vec_left.x(), eigen_vec_left.y(), eigen_vec_left.z());
+    Eigen::Vector3d eigen_vec_right = _goal_state->getGlobalLinkTransform("r_sole").translation();
+    tf_vec_right = tf2::Vector3(eigen_vec_right.x(), eigen_vec_right.y(), eigen_vec_right.z());
     geometry_msgs::Vector3 vect_msg;
     if (is_left_support) {
         support_off = trunk_to_support_foot_goal.getOrigin() - tf_vec_left;
-        fly_off = trunk_to_flying_foot_goal.getOrigin() - tf_vec_right;
-        tf::vector3TFToMsg(support_off, vect_msg);
+        fly_off     = trunk_to_flying_foot_goal.getOrigin()  - tf_vec_right;
+        vect_msg = tf2::toMsg(support_off);
         msg.left_foot_ik_offset = vect_msg;
-        tf::vector3TFToMsg(fly_off, vect_msg);
+        vect_msg = tf2::toMsg(fly_off);
         msg.right_foot_ik_offset = vect_msg;
     } else {
         support_off = trunk_to_support_foot_goal.getOrigin() - tf_vec_right;
-        fly_off = trunk_to_flying_foot_goal.getOrigin() - tf_vec_left;
-        tf::vector3TFToMsg(fly_off, vect_msg);
+        fly_off     = trunk_to_flying_foot_goal.getOrigin()  - tf_vec_left;
+        vect_msg = tf2::toMsg(fly_off);
         msg.left_foot_ik_offset = vect_msg;
-        tf::vector3TFToMsg(support_off, vect_msg);
+        vect_msg = tf2::toMsg(support_off);
         msg.right_foot_ik_offset = vect_msg;
     }
-    tf::vector3TFToMsg(support_off, vect_msg);
+    vect_msg = tf2::toMsg(support_off);
     msg.support_foot_ik_offset = vect_msg;
-    tf::vector3TFToMsg(fly_off, vect_msg);
+    vect_msg = tf2::toMsg(fly_off);
     msg.fly_foot_ik_offset = vect_msg;
 
     // actual positions
-    geometry_msgs::Pose pose_left_actual;
-    tf::poseEigenToMsg(_current_state->getGlobalLinkTransform("l_sole"), pose_left_actual);
+    geometry_msgs::Pose pose_left_actual = tf2::toMsg (_current_state->getGlobalLinkTransform("l_sole"));
     msg.left_foot_position = pose_left_actual;
-    geometry_msgs::Pose pose_right_actual;
-    tf::poseEigenToMsg(_current_state->getGlobalLinkTransform("r_sole"), pose_right_actual);
+    geometry_msgs::Pose pose_right_actual = tf2::toMsg (_current_state->getGlobalLinkTransform("r_sole"));
     msg.right_foot_position = pose_right_actual;
     if (is_left_support) {
         msg.support_foot_position = pose_left_actual;
@@ -607,26 +609,28 @@ QuinticWalkingNode::publishDebug(tf::Transform &trunk_to_support_foot_goal, tf::
     }
 
     // actual offsets
-    tf::vectorEigenToTF(_current_state->getGlobalLinkTransform("l_sole").translation(), tf_vec_left);
-    tf::vectorEigenToTF(_current_state->getGlobalLinkTransform("r_sole").translation(), tf_vec_right);
+    eigen_vec_left = _current_state->getGlobalLinkTransform("l_sole").translation();
+    tf_vec_left = tf2::Vector3(eigen_vec_left.x(), eigen_vec_left.y(), eigen_vec_left.z());
+    eigen_vec_right = _current_state->getGlobalLinkTransform("r_sole").translation();
+    tf_vec_right = tf2::Vector3(eigen_vec_right.x(), eigen_vec_right.y(), eigen_vec_right.z());
     if (is_left_support) {
         support_off = trunk_to_support_foot_goal.getOrigin() - tf_vec_left;
-        fly_off = trunk_to_flying_foot_goal.getOrigin() - tf_vec_right;
-        tf::vector3TFToMsg(support_off, vect_msg);
+        fly_off     = trunk_to_flying_foot_goal.getOrigin()  - tf_vec_right;
+        vect_msg = tf2::toMsg(support_off);
         msg.left_foot_actual_offset = vect_msg;
-        tf::vector3TFToMsg(fly_off, vect_msg);
+        vect_msg = tf2::toMsg(fly_off);
         msg.right_foot_actual_offset = vect_msg;
     } else {
         support_off = trunk_to_support_foot_goal.getOrigin() - tf_vec_right;
-        fly_off = trunk_to_flying_foot_goal.getOrigin() - tf_vec_left;
-        tf::vector3TFToMsg(fly_off, vect_msg);
+        fly_off     = trunk_to_flying_foot_goal.getOrigin()  - tf_vec_left;
+        vect_msg = tf2::toMsg(fly_off);
         msg.left_foot_actual_offset = vect_msg;
-        tf::vector3TFToMsg(support_off, vect_msg);
+        vect_msg = tf2::toMsg(support_off);
         msg.right_foot_actual_offset = vect_msg;
     }
-    tf::vector3TFToMsg(support_off, vect_msg);
+    vect_msg = tf2::toMsg(support_off);
     msg.support_foot_actual_offset = vect_msg;
-    tf::vector3TFToMsg(fly_off, vect_msg);
+    vect_msg = tf2::toMsg(fly_off);
     msg.fly_foot_actual_offset = vect_msg;
 
     _pubDebug.publish(msg);
@@ -697,7 +701,10 @@ void QuinticWalkingNode::publishMarkers() {
     point.y = step_pos[1];
     point.z = 0;
     pose.position = point;
-    pose.orientation = tf::createQuaternionMsgFromYaw(step_pos[2]);
+    tf2::Quaternion pose_quat;
+    pose_quat.setRPY(0.0, 0.0, step_pos[2]);
+    pose_quat.normalize();
+    pose.orientation = tf2::toMsg(pose_quat);
     marker_msg.pose = pose;
     _pubDebugMarker.publish(marker_msg);
 
@@ -726,7 +733,9 @@ void QuinticWalkingNode::publishMarkers() {
     point.x = step_pos[0];
     point.y = step_pos[1];
     pose.position = point;
-    pose.orientation = tf::createQuaternionMsgFromYaw(step_pos[2]);
+    pose_quat.setRPY(0.0, 0.0, step_pos[2]);
+    pose_quat.normalize();
+    pose.orientation = tf2::toMsg(pose_quat);
     marker_msg.pose = pose;
     _pubDebugMarker.publish(marker_msg);
 

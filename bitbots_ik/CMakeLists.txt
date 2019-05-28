@@ -8,9 +8,9 @@ find_package(catkin REQUIRED COMPONENTS
   rosconsole
   std_msgs
   geometry_msgs
-  eigen_conversions
-  tf
-  tf_conversions
+  tf2
+  tf2_eigen
+  tf2_geometry_msgs
   bio_ik
   moveit_core
   moveit_ros_move_group
@@ -28,8 +28,9 @@ catkin_package(
         moveit_core
         moveit_ros_planning
         roscpp
-        tf
-        tf_conversions
+        tf2
+        tf2_eigen
+        tf2_geometry_msgs
 )
 
 
