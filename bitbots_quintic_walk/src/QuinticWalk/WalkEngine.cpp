@@ -470,15 +470,20 @@ void QuinticWalk::buildTrajectories(const Eigen::Vector3d& orders, bool startMov
         _trunkPosAtLast.y(), 
         _trunkVelAtLast.y(), 
         _trunkAccAtLast.y());
-    if(startStep || startMovement){
+    if(startMovement){
         point("trunk_pos_y", halfPeriod+timeShift-pauseLength,
             trunkPointMiddle.y() + trunkVect.y() * _params.firstStepSwingFactor);
         point("trunk_pos_y", halfPeriod+timeShift+pauseLength,
             trunkPointMiddle.y() + trunkVect.y() * _params.firstStepSwingFactor);
-        point("trunk_pos_y", period+timeShift-pauseLength,
-            trunkPointMiddle.y() - trunkVect.y() * _params.firstStepSwingFactor);
-        point("trunk_pos_y", period+timeShift+pauseLength,
-            trunkPointMiddle.y() - trunkVect.y() * _params.firstStepSwingFactor);
+    }else if(startStep){
+       point("trunk_pos_y", halfPeriod+timeShift-pauseLength,
+            _trunkPosAtLast.y(),
+            _trunkVelAtLast.y(),
+            _trunkAccAtLast.y());
+       point("trunk_pos_y", period+timeShift+pauseLength,
+            _trunkPosAtLast.y(),
+            _trunkVelAtLast.y(),
+            _trunkAccAtLast.y());
     }else{
         point("trunk_pos_y", halfPeriod+timeShift-pauseLength,
             trunkApexSupport.y());
