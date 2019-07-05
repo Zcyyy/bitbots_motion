@@ -5,6 +5,7 @@
 #include <moveit/robot_model_loader/robot_model_loader.h>
 #include <moveit/planning_scene/planning_scene.h>
 #include <bio_ik/bio_ik.h>
+#include <bio_ik/goal_types.h>
 #include <geometry_msgs/Pose.h>
 #include <tf2_ros/transform_listener.h>
 #include "Visualizer.h"
@@ -35,6 +36,7 @@ public:
     void use_minimal_displacement(bool use);
     void use_cop(bool use);
     void set_trunk_height(double height);
+    void set_min_foot_distance(double distance);
     void set_stabilizing_weight(double weight);
     void set_flying_weight(double weight);
     void set_trunk_orientation_weight(double weight);
@@ -59,6 +61,7 @@ private:
     bool m_use_minimal_displacement;
     bool m_use_cop;
     double m_trunk_height;
+    double m_min_foot_distance;
     double m_stabilizing_weight;
     double m_flying_weight;
     double m_trunk_orientation_weight;

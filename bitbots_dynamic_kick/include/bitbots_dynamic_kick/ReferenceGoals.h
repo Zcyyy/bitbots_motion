@@ -89,4 +89,19 @@ public:
     }
 };
 
+class ReferenceMinPlanarDistance : public ReferenceLinkGoalBase {
+    double distance_;
+
+public:
+    ReferenceMinPlanarDistance() : ReferenceLinkGoalBase() {}
+    inline void setDistance(double distance) { distance_ = distance; }
+    double evaluate(const bio_ik::GoalContext& context) const override {
+        bio_ik::Frame reference_to_goal = bio_ik::inverse(getReferenceLinkFrame(context)) * getLinkFrame(context);
+
+        double distance = sqrt(pow(reference_to_goal.pos.x(), 2) + pow(reference_to_goal.pos.y(), 2));
+        double e = fmax(0.0, distance_ - distance);
+        return e * e;
+    }
+};
+
 #endif //BITBOTS_DYNAMIC_KICK_REFERENCEGOALS_H

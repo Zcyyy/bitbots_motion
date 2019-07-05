@@ -136,6 +136,17 @@ std::optional<JointGoals> Stabilizer::stabilize(bool is_left_kick, geometry_msgs
         ik_options.goals.emplace_back(new bio_ik::MinimalDisplacementGoal());
     }
 
+    auto* bio_ik_min_distance_goal = new ReferenceMinPlanarDistance();
+    if (is_left_kick) {
+        bio_ik_min_distance_goal->setReferenceLinkName("r_sole");
+        bio_ik_min_distance_goal->setLinkName("l_sole");
+    } else {
+        bio_ik_min_distance_goal->setReferenceLinkName("l_sole");
+        bio_ik_min_distance_goal->setLinkName("r_sole");
+    }
+    bio_ik_min_distance_goal->setDistance(m_min_foot_distance);
+    ik_options.goals.emplace_back(bio_ik_min_distance_goal);
+
     bool success = m_goal_state->setFromIK(m_legs_joints_group,
                                            EigenSTL::vector_Isometry3d(),
                                            std::vector<std::string>(),
@@ -182,6 +193,10 @@ void Stabilizer::use_cop(bool use) {
 
 void Stabilizer::set_trunk_height(double height) {
     m_trunk_height = height;
+}
+
+void Stabilizer::set_min_foot_distance(double distance) {
+    m_min_foot_distance = distance;
 }
 
 void Stabilizer::set_stabilizing_weight(double weight) {
