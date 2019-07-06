@@ -142,6 +142,15 @@ private:
     geometry_msgs::PointStamped _cop_l;
     geometry_msgs::PointStamped _cop_r;
 
+    double _imu_roll;
+    double _imu_pitch;
+    double _roll_err_sum;
+    double _pitch_err_sum;
+    double _rollP;
+    double _rollI;
+    double _pitchP;
+    double _pitchI;
+
 
     // MoveIt!
     robot_model_loader::RobotModelLoader _robot_model_loader;

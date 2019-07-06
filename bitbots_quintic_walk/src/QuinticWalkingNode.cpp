@@ -14,6 +14,9 @@ QuinticWalkingNode::QuinticWalkingNode() :
     _marker_id = 1;
     _odom_broadcaster = tf::TransformBroadcaster();
 
+    _roll_err_sum = 0;
+    _pitch_err_sum = 0;
+
     // read config
     _nh.param<double>("engineFrequency", _engineFrequency, 100.0);
     _nh.param<bool>("/simulation_active", _simulation_active, false);
@@ -88,6 +91,8 @@ void QuinticWalkingNode::run() {
         if (_robotState == humanoid_league_msgs::RobotControlState::FALLING) {
             // the robot fell, we have to reset everything and do nothing else
             _walkEngine.reset();
+            _pitch_err_sum = 0;
+            _roll_err_sum = 0;
         } else {
             // we don't want to walk, even if we have orders, if we are not in the right state
             bool walkableState = _robotState == humanoid_league_msgs::RobotControlState::CONTROLABLE ||
@@ -123,7 +128,16 @@ void QuinticWalkingNode::calculateJointGoals() {
     tf::Vector3 tf_vec;
     tf::vectorEigenToTF(_trunkPos, tf_vec);
     tf::Quaternion tf_quat = tf::Quaternion();
-    tf_quat.setRPY(_trunkAxis[0], _trunkAxis[1], _trunkAxis[2]);
+    /* Control of trunk pitch and roll via imu and PI controller */
+    double roll_err = _imu_roll - _trunkAxis[0];
+    _roll_err_sum += roll_err;
+    double corrected_roll = _trunkAxis[0] - _rollP * roll_err - _rollI * _roll_err_sum;
+
+    double pitch_err = _imu_pitch - _trunkAxis[1];
+    _pitch_err_sum += pitch_err;
+    double corrected_pitch = _trunkAxis[1] - _pitchP * pitch_err - _pitchI * _roll_err_sum;
+
+    tf_quat.setRPY(corrected_roll, corrected_pitch, _trunkAxis[2]);
     tf_quat.normalize();
     tf::Transform support_foot_to_trunk(tf_quat, tf_vec);
     tf::Transform trunk_to_support_foot_goal = support_foot_to_trunk.inverse();
@@ -230,6 +244,8 @@ void QuinticWalkingNode::imuCb(const sensor_msgs::Imu msg) {
         // the tf::Quaternion has a method to acess roll pitch and yaw
         double roll, pitch, yaw;
         tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+        _imu_pitch = pitch;
+        _imu_roll = roll;
 
         // compute the pitch offset to the currently wanted pitch of the engine
         double wanted_pitch = _params.trunkPitch + _params.trunkPitchPCoefForward*_walkEngine.getFootstep().getNext().x()
@@ -427,6 +443,11 @@ QuinticWalkingNode::reconf_callback(bitbots_quintic_walk::bitbots_quintic_walk_p
     _imu_roll_threshold = config.imuRollThreshold;
     _imu_pitch_vel_threshold = config.imuPitchVelThreshold;
     _imu_roll_vel_threshold = config.imuRollVelThreshold;
+
+    _pitchP = config.pitchP;
+    _pitchI = config.pitchI;
+    _rollP = config.rollP;
+    _rollI = config.rollI;
 
     _phaseResetActive = config.phaseResetActive;
     _phaseResetPhase = config.phaseResetPhase;
