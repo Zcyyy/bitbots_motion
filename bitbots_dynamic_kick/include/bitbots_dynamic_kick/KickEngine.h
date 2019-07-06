@@ -142,7 +142,7 @@ private:
     tf2::Quaternion m_kick_direction;
     float m_kick_speed;
     bool m_is_left_kick;
-    std::optional<Trajectories> m_support_point_trajectories, m_flying_trajectories;
+    std::optional<Trajectories> m_trunk_trajectories, m_flying_trajectories;
     KickParams m_params;
     PhaseTimings m_phase_timings;
 
@@ -159,7 +159,7 @@ private:
      *
      *  @param flying_foot_pose Current pose of the foot which is supposed to be the flying/kicking one
      */
-    void calc_splines(const geometry_msgs::Pose &flying_foot_pose);
+    void calc_splines(const geometry_msgs::Pose &flying_foot_pose, const geometry_msgs::Transform &trunk_pose);
 
 
     /**
@@ -183,13 +183,14 @@ private:
                                    const geometry_msgs::Vector3 &ball_position,
                                    const geometry_msgs::Quaternion &kick_direction);
 
-    geometry_msgs::PoseStamped get_current_pose(Trajectories spline_container);
+    geometry_msgs::Pose get_current_pose(Trajectories spline_container);
 
     /**
      * Calculate the yaw of the kicking foot, so that it is turned
      * in the direction of the kick
      */
     double calc_kick_foot_yaw();
+    geometry_msgs::Transform get_trunk_pose();
 };
 
 #endif  // BITBOTS_DYNAMIC_KICK_KICK_ENGINE_H

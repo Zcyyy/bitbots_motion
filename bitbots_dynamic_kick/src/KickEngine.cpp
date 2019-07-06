@@ -6,7 +6,7 @@ KickEngine::KickEngine() :
 
 void KickEngine::reset() {
     m_time = 0;
-    m_support_point_trajectories.reset();
+    m_trunk_trajectories.reset();
     m_flying_trajectories.reset();
 }
 
@@ -33,7 +33,8 @@ bool KickEngine::set_goal(const std_msgs::Header &header,
 
         /* Plan new splines according to new goal */
         init_trajectories();
-        calc_splines(m_is_left_kick ? l_foot_pose : r_foot_pose);
+        geometry_msgs::Transform trunk_pose_in_support_foot = get_trunk_pose();
+        calc_splines(m_is_left_kick ? l_foot_pose : r_foot_pose, trunk_pose_in_support_foot);
         m_stabilizer.m_visualizer.display_flying_splines(m_flying_trajectories.value(), (m_is_left_kick) ? "r_sole" : "l_sole");
 
         return true;
@@ -45,12 +46,13 @@ bool KickEngine::set_goal(const std_msgs::Header &header,
 
 std::optional<JointGoals> KickEngine::tick(double dt) {
     /* Only do an actual tick when splines are present */
-    if (m_support_point_trajectories && m_flying_trajectories) {
+    if (m_trunk_trajectories && m_flying_trajectories) {
         /* Get should-be pose from planned splines (every axis) at current time */
         geometry_msgs::Point support_point;
-        support_point.x = m_support_point_trajectories.value().get("pos_x").pos(m_time);
-        support_point.y = m_support_point_trajectories.value().get("pos_y").pos(m_time);
-        geometry_msgs::PoseStamped flying_foot_pose = get_current_pose(m_flying_trajectories.value());
+        support_point.x = m_trunk_trajectories.value().get("pos_x").pos(m_time);
+        support_point.y = m_trunk_trajectories.value().get("pos_y").pos(m_time);
+        geometry_msgs::Pose flying_foot_pose = get_current_pose(m_flying_trajectories.value());
+        geometry_msgs::Pose trunk_pose = get_current_pose(m_trunk_trajectories.value());
 
         /* calculate if we want to use center-of-pressure in the current phase */
         bool cop_support_point;
@@ -66,32 +68,30 @@ std::optional<JointGoals> KickEngine::tick(double dt) {
         m_time += dt;
 
         /* Stabilize and return result */
-        return m_stabilizer.stabilize(m_is_left_kick, support_point, flying_foot_pose, cop_support_point);
+        return m_stabilizer.stabilize(m_is_left_kick, trunk_pose, flying_foot_pose, cop_support_point);
     } else {
         return std::nullopt;
     }
 }
 
-geometry_msgs::PoseStamped KickEngine::get_current_pose(Trajectories spline_container) {
-    geometry_msgs::PoseStamped foot_pose;
-    foot_pose.header.frame_id = "l_sole";
-    foot_pose.header.stamp = ros::Time::now();
-    foot_pose.pose.position.x = spline_container.get("pos_x").pos(m_time);
-    foot_pose.pose.position.y = spline_container.get("pos_y").pos(m_time);
-    foot_pose.pose.position.z = spline_container.get("pos_z").pos(m_time);
+geometry_msgs::Pose KickEngine::get_current_pose(Trajectories spline_container) {
+    geometry_msgs::Pose foot_pose;
+    foot_pose.position.x = spline_container.get("pos_x").pos(m_time);
+    foot_pose.position.y = spline_container.get("pos_y").pos(m_time);
+    foot_pose.position.z = spline_container.get("pos_z").pos(m_time);
     tf2::Quaternion q;
     /* Apparently, the axis order is different than expected */
     q.setEuler(spline_container.get("pitch").pos(m_time),
                spline_container.get("roll").pos(m_time),
                spline_container.get("yaw").pos(m_time));
-    foot_pose.pose.orientation.x = q.x();
-    foot_pose.pose.orientation.y = q.y();
-    foot_pose.pose.orientation.z = q.z();
-    foot_pose.pose.orientation.w = q.w();
+    foot_pose.orientation.x = q.x();
+    foot_pose.orientation.y = q.y();
+    foot_pose.orientation.z = q.z();
+    foot_pose.orientation.w = q.w();
     return foot_pose;
 }
 
-void KickEngine::calc_splines(const geometry_msgs::Pose &flying_foot_pose) {
+void KickEngine::calc_splines(const geometry_msgs::Pose &flying_foot_pose, const geometry_msgs::Transform &trunk_pose) {
     /*
      * Add current position, target position and current position to splines so that they describe a smooth
      * curve to the ball and back
@@ -182,31 +182,52 @@ void KickEngine::calc_splines(const geometry_msgs::Pose &flying_foot_pose) {
     m_flying_trajectories->get("yaw").addPoint(m_phase_timings.move_back, start_y);
     m_flying_trajectories->get("yaw").addPoint(m_phase_timings.move_trunk_back, start_y);
 
-    /* Stabilizing point */
-    m_support_point_trajectories->get("pos_x").addPoint(0, 0);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.move_trunk, m_params.stabilizing_point_x);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.raise_foot, m_params.stabilizing_point_x);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.windup, m_params.stabilizing_point_x);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.kick, m_params.stabilizing_point_x);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.move_back, m_params.stabilizing_point_x);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.lower_foot, m_params.stabilizing_point_x);
-    m_support_point_trajectories->get("pos_x").addPoint(m_phase_timings.move_trunk_back, 0);
+    /* Trunk pose, relative to support foot */
+    m_trunk_trajectories->get("pos_x").addPoint(0, trunk_pose.translation.x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.move_trunk, m_params.stabilizing_point_x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.raise_foot, m_params.stabilizing_point_x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.windup, m_params.stabilizing_point_x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.kick, m_params.stabilizing_point_x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.move_back, m_params.stabilizing_point_x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.lower_foot, m_params.stabilizing_point_x);
+    m_trunk_trajectories->get("pos_x").addPoint(m_phase_timings.move_trunk_back, trunk_pose.translation.x);
 
-    m_support_point_trajectories->get("pos_y").addPoint(0, kick_foot_sign * (m_params.foot_distance / 2.0));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.move_trunk, kick_foot_sign * (-m_params.stabilizing_point_y));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.raise_foot, kick_foot_sign * (-m_params.stabilizing_point_y));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.windup, kick_foot_sign * (-m_params.stabilizing_point_y));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.kick, kick_foot_sign * (-m_params.stabilizing_point_y));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.move_back, kick_foot_sign * (-m_params.stabilizing_point_y));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.lower_foot, kick_foot_sign * (-m_params.stabilizing_point_y));
-    m_support_point_trajectories->get("pos_y").addPoint(m_phase_timings.move_trunk_back, kick_foot_sign * (m_params.foot_distance / 2.0));
+    m_trunk_trajectories->get("pos_y").addPoint(0, trunk_pose.translation.y);
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.move_trunk, kick_foot_sign * (-m_params.stabilizing_point_y));
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.raise_foot, kick_foot_sign * (-m_params.stabilizing_point_y));
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.windup, kick_foot_sign * (-m_params.stabilizing_point_y));
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.kick, kick_foot_sign * (-m_params.stabilizing_point_y));
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.move_back, kick_foot_sign * (-m_params.stabilizing_point_y));
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.lower_foot, kick_foot_sign * (-m_params.stabilizing_point_y));
+    m_trunk_trajectories->get("pos_y").addPoint(m_phase_timings.move_trunk_back, trunk_pose.translation.y);
+
+    m_trunk_trajectories->get("pos_z").addPoint(0, trunk_pose.translation.z);
+    m_trunk_trajectories->get("pos_z").addPoint(m_phase_timings.move_trunk_back, trunk_pose.translation.z);
+
+    /* Construct quaternion for trunk rotation */
+    tf::Quaternion trunk_rotation(trunk_pose.rotation.x, trunk_pose.rotation.y,
+                                  trunk_pose.rotation.z, trunk_pose.rotation.w);
+    double trunk_r, trunk_p, trunk_y;
+    tf::Matrix3x3(trunk_rotation).getRPY(trunk_r, trunk_p, trunk_y);
+
+    m_trunk_trajectories->get("roll").addPoint(0, trunk_r);
+    m_trunk_trajectories->get("roll").addPoint(m_phase_timings.move_trunk_back, trunk_r);
+    m_trunk_trajectories->get("pitch").addPoint(0, trunk_p);
+    m_trunk_trajectories->get("pitch").addPoint(m_phase_timings.move_trunk_back, trunk_p);
+    m_trunk_trajectories->get("yaw").addPoint(0, trunk_y);
+    m_trunk_trajectories->get("yaw").addPoint(m_phase_timings.move_trunk_back, trunk_y);
 }
 
 void KickEngine::init_trajectories() {
-    m_support_point_trajectories = Trajectories();
+    m_trunk_trajectories = Trajectories();
 
-    m_support_point_trajectories->add("pos_x");
-    m_support_point_trajectories->add("pos_y");
+    m_trunk_trajectories->add("pos_x");
+    m_trunk_trajectories->add("pos_y");
+    m_trunk_trajectories->add("pos_z");
+
+    m_trunk_trajectories->add("roll");
+    m_trunk_trajectories->add("pitch");
+    m_trunk_trajectories->add("yaw");
 
     m_flying_trajectories = Trajectories();
 
@@ -245,6 +266,16 @@ std::optional<std::pair<geometry_msgs::Point, geometry_msgs::Quaternion>> KickEn
     auto x = m_tf_buffer.lookupTransform(support_foot_frame, header.frame_id, header.stamp, ros::Duration(0.2));
 
     return std::pair(transformed_position.point, transformed_direction.quaternion);
+}
+
+geometry_msgs::Transform KickEngine::get_trunk_pose() {
+    geometry_msgs::TransformStamped trunk_frame;
+    if (m_is_left_kick) {
+        trunk_frame = m_tf_buffer.lookupTransform("r_sole", "base_link", ros::Time(0));
+    } else {
+        trunk_frame = m_tf_buffer.lookupTransform("l_sole", "base_link", ros::Time(0));
+    }
+    return trunk_frame.transform;
 }
 
 tf2::Vector3 KickEngine::calc_kick_windup_point() {
