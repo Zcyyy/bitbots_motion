@@ -146,10 +146,14 @@ private:
     double _imu_pitch;
     double _roll_err_sum;
     double _pitch_err_sum;
+    double _last_roll_err;
+    double _last_pitch_err;
     double _rollP;
     double _rollI;
+    double _rollD;
     double _pitchP;
     double _pitchI;
+    double _pitchD;
 
 
     // MoveIt!

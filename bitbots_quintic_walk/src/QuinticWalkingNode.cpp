@@ -16,6 +16,8 @@ QuinticWalkingNode::QuinticWalkingNode() :
 
     _roll_err_sum = 0;
     _pitch_err_sum = 0;
+    _last_roll_err = 0;
+    _last_pitch_err = 0;
 
     // read config
     _nh.param<double>("engineFrequency", _engineFrequency, 100.0);
@@ -128,14 +130,16 @@ void QuinticWalkingNode::calculateJointGoals() {
     tf::Vector3 tf_vec;
     tf::vectorEigenToTF(_trunkPos, tf_vec);
     tf::Quaternion tf_quat = tf::Quaternion();
-    /* Control of trunk pitch and roll via imu and PI controller */
+    /* Control of trunk pitch and roll via imu and PID controller */
     double roll_err = _imu_roll - _trunkAxis[0];
     _roll_err_sum += roll_err;
-    double corrected_roll = _trunkAxis[0] - _rollP * roll_err - _rollI * _roll_err_sum;
+    double corrected_roll = _trunkAxis[0] - _rollP * roll_err - _rollI * _roll_err_sum - _rollD * (roll_err - _last_roll_err);
+    _last_roll_err = roll_err;
 
     double pitch_err = _imu_pitch - _trunkAxis[1];
     _pitch_err_sum += pitch_err;
-    double corrected_pitch = _trunkAxis[1] - _pitchP * pitch_err - _pitchI * _roll_err_sum;
+    double corrected_pitch = _trunkAxis[1] - _pitchP * pitch_err - _pitchI * _pitch_err_sum - _pitchD * (pitch_err - _last_pitch_err);
+    _last_pitch_err = pitch_err;
 
     tf_quat.setRPY(corrected_roll, corrected_pitch, _trunkAxis[2]);
     tf_quat.normalize();
@@ -446,8 +450,10 @@ QuinticWalkingNode::reconf_callback(bitbots_quintic_walk::bitbots_quintic_walk_p
 
     _pitchP = config.pitchP;
     _pitchI = config.pitchI;
+    _pitchD = config.pitchD;
     _rollP = config.rollP;
     _rollI = config.rollI;
+    _rollD = config.rollD;
 
     _phaseResetActive = config.phaseResetActive;
     _phaseResetPhase = config.phaseResetPhase;
