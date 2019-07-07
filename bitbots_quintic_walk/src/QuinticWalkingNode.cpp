@@ -240,17 +240,18 @@ void QuinticWalkingNode::cmdVelCb(const geometry_msgs::Twist msg) {
 }
 
 void QuinticWalkingNode::imuCb(const sensor_msgs::Imu msg) {
+    // the incoming geometry_msgs::Quaternion is transformed to a tf::Quaterion
+    tf::Quaternion quat;
+    tf::quaternionMsgToTF(msg.orientation, quat);
+
+    // the tf::Quaternion has a method to acess roll pitch and yaw
+    double roll, pitch, yaw;
+    tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
+    // pitch and roll are inverted in the other imu!
+    _imu_pitch = - pitch;
+    _imu_roll = - roll;
+
     if (_imuActive) {
-        // the incoming geometry_msgs::Quaternion is transformed to a tf::Quaterion
-        tf::Quaternion quat;
-        tf::quaternionMsgToTF(msg.orientation, quat);
-
-        // the tf::Quaternion has a method to acess roll pitch and yaw
-        double roll, pitch, yaw;
-        tf::Matrix3x3(quat).getRPY(roll, pitch, yaw);
-        _imu_pitch = pitch;
-        _imu_roll = roll;
-
         // compute the pitch offset to the currently wanted pitch of the engine
         double wanted_pitch = _params.trunkPitch + _params.trunkPitchPCoefForward*_walkEngine.getFootstep().getNext().x()
         + _params.trunkPitchPCoefTurn*fabs(_walkEngine.getFootstep().getNext().z());
@@ -259,7 +260,6 @@ void QuinticWalkingNode::imuCb(const sensor_msgs::Imu msg) {
         // get angular velocities
         double roll_vel = msg.angular_velocity.x;
         double pitch_vel = msg.angular_velocity.y;
-
 
         if (abs(roll) > _imu_roll_threshold || abs(pitch) > _imu_pitch_threshold || abs(pitch_vel) > _imu_pitch_vel_threshold || abs(roll_vel) > _imu_roll_vel_threshold) {
             _walkEngine.requestPause();

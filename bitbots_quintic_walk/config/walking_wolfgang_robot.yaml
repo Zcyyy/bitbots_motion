@@ -100,4 +100,8 @@ walking:
   firstStepSwingFactor: 1.0
 
   pitchP: 0.2
-  rollP: 0.1
+  pitchI: 0.0
+  pitchD: 2.0
+  rollP: 0.0
+  rollI: 0.0
+  rollD: 0.0
