@@ -94,8 +94,6 @@ namespace bitbots_quintic_walk {
 
         void imuCb(sensor_msgs::Imu msg);
 
-        void pressureCb(bitbots_msgs::FootPressure msg);
-
         void robStateCb(humanoid_league_msgs::RobotControlState msg);
 
         void jointStateCb(sensor_msgs::JointState msg);
@@ -188,7 +186,6 @@ namespace bitbots_quintic_walk {
         ros::Subscriber _subJointStates;
         ros::Subscriber _subKick;
         ros::Subscriber _subImu;
-        ros::Subscriber _subPressure;
         ros::Subscriber _subCopL;
         ros::Subscriber _subCopR;
 
