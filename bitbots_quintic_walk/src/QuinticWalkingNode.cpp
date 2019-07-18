@@ -14,7 +14,7 @@ namespace bitbots_quintic_walk {
         _currentOrders[2] = 0.0;
 
         _marker_id = 1;
-        _odom_broadcaster = tf::TransformBroadcaster();
+        _message_handlers.odom_broadcaster = tf::TransformBroadcaster();
 
         // read config
         _nh.param<double>("engineFrequency", _engineFrequency, 100.0);
@@ -23,25 +23,25 @@ namespace bitbots_quintic_walk {
 
         /* init publisher and subscriber */
         _command_msg = bitbots_msgs::JointCommand();
-        _pubControllerCommand = _nh.advertise<bitbots_msgs::JointCommand>("walking_motor_goals", 1);
+        _message_handlers.pubControllerCommand = _nh.advertise<bitbots_msgs::JointCommand>("walking_motor_goals", 1);
         _odom_msg = nav_msgs::Odometry();
-        _pubOdometry = _nh.advertise<nav_msgs::Odometry>("walk_odometry", 1);
-        _pubSupport = _nh.advertise<std_msgs::Char>("walk_support_state", 1);
-        _subCmdVel = _nh.subscribe("cmd_vel", 1, &QuinticWalkingNode::cmdVelCb, this,
+        _message_handlers.pubOdometry = _nh.advertise<nav_msgs::Odometry>("walk_odometry", 1);
+        _message_handlers.pubSupport = _nh.advertise<std_msgs::Char>("walk_support_state", 1);
+        _message_handlers.subCmdVel = _nh.subscribe("cmd_vel", 1, &QuinticWalkingNode::cmdVelCb, this,
                                    ros::TransportHints().tcpNoDelay());
-        _subRobState = _nh.subscribe("robot_state", 1, &QuinticWalkingNode::robStateCb, this,
+        _message_handlers.subRobState = _nh.subscribe("robot_state", 1, &QuinticWalkingNode::robStateCb, this,
                                      ros::TransportHints().tcpNoDelay());
         //todo not really needed
         //_subJointStates = _nh.subscribe("joint_states", 1, &QuinticWalkingNode::jointStateCb, this, ros::TransportHints().tcpNoDelay());
-        _subKick = _nh.subscribe("kick", 1, &QuinticWalkingNode::kickCb, this, ros::TransportHints().tcpNoDelay());
-        _subImu = _nh.subscribe("imu/data", 1, &QuinticWalkingNode::imuCb, this, ros::TransportHints().tcpNoDelay());
-        _subCopL = _nh.subscribe("cop_l", 1, &QuinticWalkingNode::cop_l_cb, this, ros::TransportHints().tcpNoDelay());
-        _subCopR = _nh.subscribe("cop_r", 1, &QuinticWalkingNode::cop_r_cb, this, ros::TransportHints().tcpNoDelay());
+        _message_handlers.subKick = _nh.subscribe("kick", 1, &QuinticWalkingNode::kickCb, this, ros::TransportHints().tcpNoDelay());
+        _message_handlers.subImu = _nh.subscribe("imu/data", 1, &QuinticWalkingNode::imuCb, this, ros::TransportHints().tcpNoDelay());
+        _message_handlers.subCopL = _nh.subscribe("cop_l", 1, &QuinticWalkingNode::cop_l_cb, this, ros::TransportHints().tcpNoDelay());
+        _message_handlers.subCopR = _nh.subscribe("cop_r", 1, &QuinticWalkingNode::cop_r_cb, this, ros::TransportHints().tcpNoDelay());
 
 
         /* debug publisher */
-        _pubDebug = _nh.advertise<bitbots_quintic_walk::WalkingDebug>("walk_debug", 1);
-        _pubDebugMarker = _nh.advertise<visualization_msgs::Marker>("walk_debug_marker", 1);
+        _message_handlers.pubDebug = _nh.advertise<bitbots_quintic_walk::WalkingDebug>("walk_debug", 1);
+        _message_handlers.pubDebugMarker = _nh.advertise<visualization_msgs::Marker>("walk_debug_marker", 1);
 
         //load MoveIt! model
         _robot_model_loader.loadKinematicsSolvers(
@@ -150,7 +150,7 @@ namespace bitbots_quintic_walk {
         } else {
             support_state.data = 'r';
         }
-        _pubSupport.publish(support_state);
+        _message_handlers.pubSupport.publish(support_state);
 
         // publish debug information
         if (_debugActive) {
@@ -330,7 +330,7 @@ namespace bitbots_quintic_walk {
         _command_msg.accelerations = accs;
         _command_msg.max_currents = pwms;
 
-        _pubControllerCommand.publish(_command_msg);
+        _message_handlers.pubControllerCommand.publish(_command_msg);
     }
 
     void QuinticWalkingNode::publishOdometry() {
@@ -384,7 +384,7 @@ namespace bitbots_quintic_walk {
             _odom_trans.transform.rotation = quat_msg;
 
             //send the transform
-            _odom_broadcaster.sendTransform(_odom_trans);
+            _message_handlers.odom_broadcaster.sendTransform(_odom_trans);
         }
 
         // send the odometry also as message
@@ -403,7 +403,7 @@ namespace bitbots_quintic_walk {
         twist.angular.z = _currentOrders[2] * _params.freq * 2;
 
         _odom_msg.twist.twist = twist;
-        _pubOdometry.publish(_odom_msg);
+        _message_handlers.pubOdometry.publish(_odom_msg);
     }
 
     void
@@ -603,7 +603,7 @@ namespace bitbots_quintic_walk {
         tf::vector3TFToMsg(fly_off, vect_msg);
         msg.fly_foot_actual_offset = vect_msg;
 
-        _pubDebug.publish(msg);
+        _message_handlers.pubDebug.publish(msg);
     }
 
     void QuinticWalkingNode::publishMarker(std::string name_space,
@@ -635,7 +635,7 @@ namespace bitbots_quintic_walk {
         marker_msg.id = _marker_id;
         _marker_id++;
 
-        _pubDebugMarker.publish(marker_msg);
+        _message_handlers.pubDebugMarker.publish(marker_msg);
     }
 
     void QuinticWalkingNode::publishMarkers() {
@@ -673,7 +673,7 @@ namespace bitbots_quintic_walk {
         pose.position = point;
         pose.orientation = tf::createQuaternionMsgFromYaw(step_pos[2]);
         marker_msg.pose = pose;
-        _pubDebugMarker.publish(marker_msg);
+        _message_handlers.pubDebugMarker.publish(marker_msg);
 
         //last step center
         marker_msg.ns = "step_center";
@@ -682,7 +682,7 @@ namespace bitbots_quintic_walk {
         scale.y = 0.01;
         scale.z = 0.01;
         marker_msg.scale = scale;
-        _pubDebugMarker.publish(marker_msg);
+        _message_handlers.pubDebugMarker.publish(marker_msg);
 
         // next step
         marker_msg.id = _marker_id;
@@ -702,7 +702,7 @@ namespace bitbots_quintic_walk {
         pose.position = point;
         pose.orientation = tf::createQuaternionMsgFromYaw(step_pos[2]);
         marker_msg.pose = pose;
-        _pubDebugMarker.publish(marker_msg);
+        _message_handlers.pubDebugMarker.publish(marker_msg);
 
         _marker_id++;
     }

@@ -47,6 +47,24 @@ https://github.com/Rhoban/model/
 
 namespace bitbots_quintic_walk {
 
+    struct MessageHandlers {
+        tf::TransformBroadcaster odom_broadcaster;
+
+        ros::Publisher pubControllerCommand;
+        ros::Publisher pubOdometry;
+        ros::Publisher pubSupport;
+        ros::Publisher pubDebug;
+        ros::Publisher pubDebugMarker;
+
+        ros::Subscriber subCmdVel;
+        ros::Subscriber subRobState;
+        ros::Subscriber subJointStates;
+        ros::Subscriber subKick;
+        ros::Subscriber subImu;
+        ros::Subscriber subCopL;
+        ros::Subscriber subCopR;
+    };
+
     class QuinticWalkingNode {
     public:
         QuinticWalkingNode();
@@ -174,24 +192,10 @@ namespace bitbots_quintic_walk {
 
         ros::NodeHandle _nh;
 
-        ros::Publisher _pubControllerCommand;
-        ros::Publisher _pubOdometry;
-        ros::Publisher _pubSupport;
-        tf::TransformBroadcaster _odom_broadcaster;
-        ros::Publisher _pubDebug;
-        ros::Publisher _pubDebugMarker;
-
-        ros::Subscriber _subCmdVel;
-        ros::Subscriber _subRobState;
-        ros::Subscriber _subJointStates;
-        ros::Subscriber _subKick;
-        ros::Subscriber _subImu;
-        ros::Subscriber _subCopL;
-        ros::Subscriber _subCopR;
+        MessageHandlers _message_handlers;
 
         geometry_msgs::PointStamped _cop_l;
         geometry_msgs::PointStamped _cop_r;
-
 
         // MoveIt!
         robot_model_loader::RobotModelLoader _robot_model_loader;
