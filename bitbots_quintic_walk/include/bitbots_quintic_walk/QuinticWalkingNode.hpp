@@ -194,6 +194,8 @@ namespace bitbots_quintic_walk {
 
         MessageHandlers _message_handlers;
 
+        dynamic_reconfigure::Server<bitbots_quintic_walk_paramsConfig> _server;
+
         geometry_msgs::PointStamped _cop_l;
         geometry_msgs::PointStamped _cop_r;
 
