@@ -41,6 +41,7 @@ https://github.com/Rhoban/model/
 #include "bitbots_ik/AnalyticIKSolver.hpp"
 #include "bitbots_ik/BioIKSolver.hpp"
 #include "bitbots_quintic_walk/WalkEngine.hpp"
+#include "DspSDK/DspHandler.h"
 #include <std_msgs/Bool.h>
 #include <unistd.h>
 
@@ -65,7 +66,46 @@ public:
      */
     void initializeEngine();
 
-private:
+    bool SetHeadMoveValid(std_srvs::SetBool::Request& req,
+                          std_srvs::SetBool::Response& res);
+
+    bool SetSensorEnableValid(std_srvs::SetBool::Request& req,
+                              std_srvs::SetBool::Response& res);
+
+    bool ResetOdometry(std_srvs::SetBool::Request& req,
+                       std_srvs::SetBool::Response& res);
+
+    bool SetSpecialGaitValid(std_srvs::SetBool::Request& req,
+                             std_srvs::SetBool::Response& res);
+
+    bool SetWalkKickLeft(std_srvs::SetBool::Request& req,
+                         std_srvs::SetBool::Response& res);
+
+    bool SetWalkKickRight(std_srvs::SetBool::Request& req,
+                          std_srvs::SetBool::Response& res);
+
+    bool SetTorqueEnable(std_srvs::SetBool::Request& req,
+                         std_srvs::SetBool::Response& res);
+
+    bool SetGaitValid(std_srvs::SetBool::Request& req,
+                      std_srvs::SetBool::Response& res);
+
+    bool ResetGait(std_srvs::SetBool::Request& req,
+                   std_srvs::SetBool::Response& res);
+
+    bool GetSpecialGaitPending(std_srvs::Trigger::Request& req,
+                               std_srvs::Trigger::Response& res);
+
+    bool GetOdometryResetPending(std_srvs::Trigger::Request& req,
+                                 std_srvs::Trigger::Response& res);
+
+    bool GaitResetPending(std_srvs::Trigger::Request& req,
+                          std_srvs::Trigger::Response& res);
+
+    bool GetWalkKickPending(std_srvs::Trigger::Request& req,
+                            std_srvs::Trigger::Response& res);
+
+   private:
     void publishControllerCommands(std::vector<std::string> joint_names, std::vector<double> positions);
 
     void publishDebug(tf::Transform &trunk_to_support_foot, tf::Transform &trunk_to_flying_foot);
@@ -93,10 +133,13 @@ private:
 
     void cop_r_cb(const geometry_msgs::PointStamped msg);
 
-
     void calculateJointGoals();
 
     double getTimeDelta();
+
+    void SetDspCommand();
+    void ClearDspValidState();
+    void GetDataFromDsp();
 
     bool _debugActive;
     bool _simulation_active;
@@ -138,10 +181,23 @@ private:
     Eigen::Vector3d _footAxis;
     bool _isLeftSupport;
 
+    bool _special_gait_pending;
+    bool _odometry_reset_pending;
+    bool _gait_reset_pending;
+    bool _walk_kick_pending;
+
+    Eigen::Vector3d _real_velocities;
+    Eigen::Vector3d _real_odometry;
+    Eigen::Vector3d _imu_angle;
+    Eigen::Vector2d _real_head_pos;
+    Eigen::Vector7d _real_body_pos;
+
     /**
      * Saves current orders as [x-direction, y-direction, z-rotation]
      */
     Eigen::Vector3d _currentOrders;
+    Eigen::Vector2d _headPos;
+    Eigen::Vector2i _gaitId;
 
     /**
      * Saves max values we can move in a single step as [x-direction, y-direction, z-rotation].
@@ -193,6 +249,7 @@ private:
 
     // IK solver
     bitbots_ik::BioIKSolver _bioIK_solver;
+    std::shared_ptr<DspSDK::DspHandler> _dsp_handler;
 
 };
 

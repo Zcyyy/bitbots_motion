@@ -1,8 +1,11 @@
 #include "bitbots_quintic_walk/QuinticWalkingNode.hpp"
 
-
-QuinticWalkingNode::QuinticWalkingNode() :
-        _robot_model_loader("/robot_description", false) {
+QuinticWalkingNode::QuinticWalkingNode()
+    : _robot_model_loader("/robot_description", false),
+      _special_gait_pending(false),
+      _odometry_reset_pending(false),
+      _gait_reset_pending(false),
+      _walk_kick_pending(false) {
     // init variables
     _robotState = humanoid_league_msgs::RobotControlState::CONTROLABLE;
     _walkEngine = bitbots_quintic_walk::QuinticWalk();
@@ -21,31 +24,42 @@ QuinticWalkingNode::QuinticWalkingNode() :
 
     /* init publisher and subscriber */
     _command_msg = bitbots_msgs::JointCommand();
-    _pubControllerCommand = _nh.advertise<bitbots_msgs::JointCommand>("walking_motor_goals", 1);
+    _pubControllerCommand =
+        _nh.advertise<bitbots_msgs::JointCommand>("walking_motor_goals", 1);
     _odom_msg = nav_msgs::Odometry();
     _pubOdometry = _nh.advertise<nav_msgs::Odometry>("walk_odometry", 1);
     _pubSupport = _nh.advertise<std_msgs::Char>("walk_support_state", 1);
-    _subCmdVel = _nh.subscribe("cmd_vel", 1, &QuinticWalkingNode::cmdVelCb, this, ros::TransportHints().tcpNoDelay());
-    _subRobState = _nh.subscribe("robot_state", 1, &QuinticWalkingNode::robStateCb, this,
+    _subCmdVel = _nh.subscribe("cmd_vel", 1, &QuinticWalkingNode::cmdVelCb, this,
+                               ros::TransportHints().tcpNoDelay());
+    _subRobState =
+        _nh.subscribe("robot_state", 1, &QuinticWalkingNode::robStateCb, this,
+                      ros::TransportHints().tcpNoDelay());
+    // todo not really needed
+    //_subJointStates = _nh.subscribe("joint_states", 1,
+    //&QuinticWalkingNode::jointStateCb, this,
+    //ros::TransportHints().tcpNoDelay());
+    _subKick = _nh.subscribe("kick", 1, &QuinticWalkingNode::kickCb, this,
+                             ros::TransportHints().tcpNoDelay());
+    _subImu = _nh.subscribe("imu/data", 1, &QuinticWalkingNode::imuCb, this,
+                            ros::TransportHints().tcpNoDelay());
+    _subPressure = _nh.subscribe("foot_pressure_filtered", 1,
+                                 &QuinticWalkingNode::pressureCb, this,
                                  ros::TransportHints().tcpNoDelay());
-    //todo not really needed
-    //_subJointStates = _nh.subscribe("joint_states", 1, &QuinticWalkingNode::jointStateCb, this, ros::TransportHints().tcpNoDelay());
-    _subKick = _nh.subscribe("kick", 1, &QuinticWalkingNode::kickCb, this, ros::TransportHints().tcpNoDelay());
-    _subImu = _nh.subscribe("imu/data", 1, &QuinticWalkingNode::imuCb, this, ros::TransportHints().tcpNoDelay());
-    _subPressure = _nh.subscribe("foot_pressure_filtered", 1, &QuinticWalkingNode::pressureCb, this,
-                                 ros::TransportHints().tcpNoDelay());
-    _subCopL = _nh.subscribe("cop_l", 1, &QuinticWalkingNode::cop_l_cb, this, ros::TransportHints().tcpNoDelay());
-    _subCopR = _nh.subscribe("cop_r", 1, &QuinticWalkingNode::cop_r_cb, this, ros::TransportHints().tcpNoDelay());
-
+    _subCopL = _nh.subscribe("cop_l", 1, &QuinticWalkingNode::cop_l_cb, this,
+                             ros::TransportHints().tcpNoDelay());
+    _subCopR = _nh.subscribe("cop_r", 1, &QuinticWalkingNode::cop_r_cb, this,
+                             ros::TransportHints().tcpNoDelay());
 
     /* debug publisher */
-    _pubDebug = _nh.advertise<bitbots_quintic_walk::WalkingDebug>("walk_debug", 1);
-    _pubDebugMarker = _nh.advertise<visualization_msgs::Marker>("walk_debug_marker", 1);
+    _pubDebug =
+        _nh.advertise<bitbots_quintic_walk::WalkingDebug>("walk_debug", 1);
+    _pubDebugMarker =
+        _nh.advertise<visualization_msgs::Marker>("walk_debug_marker", 1);
 
-    //load MoveIt! model    
+    // load MoveIt! model
     _robot_model_loader.loadKinematicsSolvers(
-            kinematics_plugin_loader::KinematicsPluginLoaderPtr(
-                    new kinematics_plugin_loader::KinematicsPluginLoader()));
+        kinematics_plugin_loader::KinematicsPluginLoaderPtr(
+            new kinematics_plugin_loader::KinematicsPluginLoader()));
     _kinematic_model = _robot_model_loader.getModel();
     _all_joints_group = _kinematic_model->getJointModelGroup("All");
     _legs_joints_group = _kinematic_model->getJointModelGroup("Legs");
@@ -53,23 +67,30 @@ QuinticWalkingNode::QuinticWalkingNode() :
     _rleg_joints_group = _kinematic_model->getJointModelGroup("RightLeg");
     _goal_state.reset(new robot_state::RobotState(_kinematic_model));
     _goal_state->setToDefaultValues();
-    // we have to set some good initial position in the goal state, since we are using a gradient 
-    // based method. Otherwise, the first step will be not correct
-    std::vector<std::string> names_vec = {"LHipPitch", "LKnee", "LAnklePitch", "RHipPitch", "RKnee", "RAnklePitch"};
+    // we have to set some good initial position in the goal state, since we are
+    // using a gradient based method. Otherwise, the first step will be not
+    // correct
+    std::vector<std::string> names_vec = {"LHipPitch", "LKnee", "LAnklePitch",
+                                          "RHipPitch", "RKnee", "RAnklePitch"};
     std::vector<double> pos_vec = {0.7, -1.0, -0.4, -0.7, 1.0, 0.4};
     for (int i = 0; i < names_vec.size(); i++) {
-        // besides its name, this method only changes a single joint position...
-        _goal_state->setJointPositions(names_vec[i], &pos_vec[i]);
+      // besides its name, this method only changes a single joint position...
+      _goal_state->setJointPositions(names_vec[i], &pos_vec[i]);
     }
 
     _current_state.reset(new robot_state::RobotState(_kinematic_model));
     _current_state->setToDefaultValues();
 
     // initilize IK solver
-    _bioIK_solver = bitbots_ik::BioIKSolver(*_all_joints_group, *_lleg_joints_group, *_rleg_joints_group);
+    _bioIK_solver = bitbots_ik::BioIKSolver(
+        *_all_joints_group, *_lleg_joints_group, *_rleg_joints_group);
     _bioIK_solver.set_use_approximate(true);
 
     _first_run = true;
+
+    // initilize DSP handler
+    _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");
+    _dsp_handler.Init();
 }
 
 
@@ -97,6 +118,10 @@ void QuinticWalkingNode::run() {
                 calculateJointGoals();
             }
         }
+        SetDspCommand();
+        _dsp_handler->DspThread();
+        ClearDspValidState();
+        GetDataFromDsp();
 
         // publish odometry
         odom_counter++;
@@ -380,7 +405,6 @@ void QuinticWalkingNode::cop_l_cb(const geometry_msgs::PointStamped msg) {
 void QuinticWalkingNode::cop_r_cb(const geometry_msgs::PointStamped msg) {
     _cop_r = msg;
 }
-
 
 void
 QuinticWalkingNode::reconf_callback(bitbots_quintic_walk::bitbots_quintic_walk_paramsConfig &config, uint32_t level) {
@@ -838,6 +862,137 @@ void QuinticWalkingNode::initializeEngine() {
     _walkEngine.reset();
 }
 
+bool QuinticWalkingNode::SetHeadValid(std_srvs::SetBool::Request& req,
+                                      std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetHeadMoveValid(req.data);
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetHeadMoveValid(std_srvs::SetBool::Request& req,
+                                          std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetHeadMoveValid(req.data);
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetSensorEnableValid(
+    std_srvs::SetBool::Request& req, std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetSensorEnableValid(req.data);
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::ResetOdometry(std_srvs::SetBool::Request& req,
+                                       std_srvs::SetBool::Response& res) {
+  _dsp_handler->ResetOdometry(req.data);
+  _odometry_reset_pending = true;
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetSpecialGaitValid(
+    std_srvs::SetBool::Request& req, std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetSpecialGaitValid(req.data);
+  _special_gait_pending = true;
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetWalkKickLeft(std_srvs::SetBool::Request& req,
+                                         std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetWalkKickLeft(req.data);
+  _walk_kick_pending = true;
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetWalkKickRight(std_srvs::SetBool::Request& req,
+                                          std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetWalkKickRight(req.data);
+  _walk_kick_pending = true;
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetTorqueEnable(std_srvs::SetBool::Request& req,
+                                         std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetTorqueEnable(req.data);
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::SetGaitValid(std_srvs::SetBool::Request& req,
+                                      std_srvs::SetBool::Response& res) {
+  _dsp_handler->SetGaitValid(req.data);
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::ResetGait(std_srvs::SetBool::Request& req,
+                                   std_srvs::SetBool::Response& res) {
+  _dsp_handler->ResetGait(req.data);
+  res.success = true;
+  return true;
+}
+
+bool QuinticWalkingNode::GetSpecialGaitPending(
+    std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  res.success = _special_gait_pending;
+  return true;
+}
+
+bool QuinticWalkingNode::GetOdometryResetPending(
+    std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  res.success = _odometry_reset_pending;
+  return true;
+}
+
+bool QuinticWalkingNode::GaitResetPending(
+    std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  res.success = _gait_reset_pending;
+  return true;
+}
+
+bool QuinticWalkingNode::GetWalkKickPending(
+    std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  res.success = _walk_kick_pending;
+  return true;
+}
+
+void QuinticWalkingNode::SetDspCommand() {
+  _dsp_handler->SetVelocity(_currentOrders[0], _currentOrders[1],
+                            _currentOrders[2]);
+  _dsp_handler->SetHeadPos(_headPos[0], _headPos[1]);
+  _dsp_handler->SetSpecialGaitId(_gaitId[0], _gaitId[1]);
+}
+
+void QuinticWalkingNode::ClearDspValidState() {
+  _dsp_handler->SetSpecialGaitValid(false);
+  _dsp_handler->ResetGait(false);
+  _dsp_handler->ResetOdometry(false);
+  _dsp_handler->SetWalkKickLeft(false);
+  _dsp_handler->SetWalkKickRight(false);
+}
+
+void QuinticWalkingNode::GetDataFromDsp() {
+  std::vector<bool> pending_states = _dsp_handler->GetSpecialGaitState();
+  _special_gait_pending = pending_states[0];
+  _odometry_reset_pending = pending_states[1];
+  _gait_reset_pending = pending_states[2];
+  _walk_kick_pending = pending_states[3];
+
+  _real_velocities = _dsp_handler->GetVelocity();
+
+  _real_head_pos = _dsp_handler->GetHeadPos();
+
+  _real_odometry = _dsp_handler->GetOdometry();
+
+  _real_body_pos = _dsp_handler->GetBodyPose();
+
+  _imu_angle = _dsp_handler->GetImuAngle();
+}
+
 int main(int argc, char **argv) {
     ros::init(argc, argv, "quintic_walking");
     // init node
@@ -852,4 +1007,3 @@ int main(int argc, char **argv) {
     node.initializeEngine();
     node.run();
 }
-
