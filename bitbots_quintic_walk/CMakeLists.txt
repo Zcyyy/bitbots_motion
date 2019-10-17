@@ -22,6 +22,8 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   moveit_ros_robot_interaction
   bitbots_msgs
+  dsp_sdk
+  std_srvs
 )
 
 find_package(Eigen3 REQUIRED)
@@ -48,7 +50,7 @@ generate_messages(
 catkin_package(
         INCLUDE_DIRS include
         LIBRARIES ${PROJECT_NAME}
-        CATKIN_DEPENDS humanoid_league_msgs std_msgs geometry_msgs bitbots_ik bitbots_splines message_runtime
+        CATKIN_DEPENDS humanoid_league_msgs std_msgs geometry_msgs bitbots_ik bitbots_splines message_runtime dsp_sdk
         DEPENDS EIGEN3 
 )
 

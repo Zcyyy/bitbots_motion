@@ -34,6 +34,8 @@
   <depend>message_runtime</depend>
   <depend>bitbots_msgs</depend>
   <depend>moveit_ros_robot_interaction</depend>
+  <depend>dsp_sdk</depend>
+  <depend>std_srvs</depend>
 
   <test_depend>plotjuggler</test_depend>
 

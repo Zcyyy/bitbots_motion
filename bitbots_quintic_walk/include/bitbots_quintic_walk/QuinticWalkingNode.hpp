@@ -23,6 +23,8 @@ https://github.com/Rhoban/model/
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
+#include <std_srvs/SetBool.h>
+#include <std_srvs/Trigger.h>
 #include <moveit_msgs/RobotState.h>
 #include <humanoid_league_msgs/RobotControlState.h>
 #include <bitbots_quintic_walk/WalkingDebug.h>
@@ -190,7 +192,7 @@ public:
     Eigen::Vector3d _real_odometry;
     Eigen::Vector3d _imu_angle;
     Eigen::Vector2d _real_head_pos;
-    Eigen::Vector7d _real_body_pos;
+    Eigen::Matrix<double, 7, 1> _real_body_pos;
 
     /**
      * Saves current orders as [x-direction, y-direction, z-rotation]

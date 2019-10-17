@@ -90,7 +90,7 @@ QuinticWalkingNode::QuinticWalkingNode()
 
     // initilize DSP handler
     _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");
-    _dsp_handler.Init();
+    _dsp_handler->Init();
 }
 
 
@@ -860,13 +860,6 @@ void QuinticWalkingNode::publishMarkers() {
 
 void QuinticWalkingNode::initializeEngine() {
     _walkEngine.reset();
-}
-
-bool QuinticWalkingNode::SetHeadValid(std_srvs::SetBool::Request& req,
-                                      std_srvs::SetBool::Response& res) {
-  _dsp_handler->SetHeadMoveValid(req.data);
-  res.success = true;
-  return true;
 }
 
 bool QuinticWalkingNode::SetHeadMoveValid(std_srvs::SetBool::Request& req,
