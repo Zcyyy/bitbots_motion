@@ -87,10 +87,16 @@ QuinticWalkingNode::QuinticWalkingNode()
     _bioIK_solver.set_use_approximate(true);
 
     _first_run = true;
+    // ros::ServiceServer service = _nh.advertiseService("get_velocity", GetOdometryResetPending);
 
     // initilize DSP handler
     _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");
     _dsp_handler->Init();
+    _dsp_handler->SetVelocity(0., 0., 0.);
+    _dsp_handler->SetHeadPos(0., 0.);
+    _dsp_handler->SetGaitValid(true);
+    _dsp_handler->SetTorqueEnable(true);
+    _dsp_handler->SetSensorEnableValid(true);
 }
 
 
@@ -976,6 +982,7 @@ void QuinticWalkingNode::GetDataFromDsp() {
   _walk_kick_pending = pending_states[3];
 
   _real_velocities = _dsp_handler->GetVelocity();
+  std::cout << "real velocity: " << _real_velocities.transpose() << std::endl;
 
   _real_head_pos = _dsp_handler->GetHeadPos();
 
