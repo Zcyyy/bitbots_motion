@@ -235,9 +235,24 @@ public:
     ros::Subscriber _subCopL;
     ros::Subscriber _subCopR;
 
+    // dsp command service
+    ros::ServiceServer _set_head_move_valid_service;
+    ros::ServiceServer _set_sensor_enable_valid_service;
+    ros::ServiceServer _set_special_gait_valid_service;
+    ros::ServiceServer _set_walk_kick_left_service;
+    ros::ServiceServer _set_walk_kick_right_service;
+    ros::ServiceServer _set_torque_enable_service;
+    ros::ServiceServer _set_gait_valid_service;
+    ros::ServiceServer _reset_odometry_service;
+    ros::ServiceServer _reset_gait_service;
+
+    ros::ServiceServer _get_special_gait_pending_service;
+    ros::ServiceServer _get_odometry_reset_pending_service;
+    ros::ServiceServer _gait_reset_pending_service;
+    ros::ServiceServer _get_walk_kick_pending_service;
+
     geometry_msgs::PointStamped _cop_l;
     geometry_msgs::PointStamped _cop_r;
-
 
     // MoveIt!
     robot_model_loader::RobotModelLoader _robot_model_loader;
@@ -252,7 +267,6 @@ public:
     // IK solver
     bitbots_ik::BioIKSolver _bioIK_solver;
     std::shared_ptr<DspSDK::DspHandler> _dsp_handler;
-
 };
 
 #endif

@@ -87,7 +87,34 @@ QuinticWalkingNode::QuinticWalkingNode()
     _bioIK_solver.set_use_approximate(true);
 
     _first_run = true;
-    // ros::ServiceServer service = _nh.advertiseService("get_velocity", GetOdometryResetPending);
+
+    _set_head_move_valid_service = _nh.advertiseService(
+        "set_head_move_valid", &QuinticWalkingNode::SetHeadMoveValid, this);
+    _set_sensor_enable_valid_service = _nh.advertiseService(
+        "set_sensor_enable_valid", &QuinticWalkingNode::SetSensorEnableValid, this);
+    _set_special_gait_valid_service = _nh.advertiseService(
+        "set_special_gait_valid", &QuinticWalkingNode::SetSpecialGaitValid, this);
+    _set_walk_kick_left_service = _nh.advertiseService(
+        "set_walk_kick_left", &QuinticWalkingNode::SetWalkKickLeft, this);
+    _set_walk_kick_right_service = _nh.advertiseService(
+        "set_walk_kick_right", &QuinticWalkingNode::SetWalkKickRight, this);
+    _set_torque_enable_service = _nh.advertiseService(
+        "set_torque_enable", &QuinticWalkingNode::SetTorqueEnable, this);
+    _set_gait_valid_service = _nh.advertiseService(
+        "set_gait_valid", &QuinticWalkingNode::SetGaitValid, this);
+    _reset_odometry_service = _nh.advertiseService(
+        "reset_odometry", &QuinticWalkingNode::ResetOdometry, this);
+    _reset_gait_service = _nh.advertiseService(
+        "reset_gait_service", &QuinticWalkingNode::ResetGait, this);
+
+    _get_special_gait_pending_service = _nh.advertiseService(
+        "get_special_gait_pending", &QuinticWalkingNode::GetSpecialGaitPending, this);
+    _get_odometry_reset_pending_service = _nh.advertiseService(
+        "get_odometry_reset_pending", &QuinticWalkingNode::GetOdometryResetPending, this);
+    _gait_reset_pending_service = _nh.advertiseService(
+        "gait_reset_pending", &QuinticWalkingNode::GaitResetPending, this);
+    _get_walk_kick_pending_service = _nh.advertiseService(
+        "get_walk_kick_pending", &QuinticWalkingNode::GetWalkKickPending, this);
 
     // initilize DSP handler
     _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");
