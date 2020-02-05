@@ -80,11 +80,23 @@ public:
     bool SetSpecialGaitValid(std_srvs::SetBool::Request& req,
                              std_srvs::SetBool::Response& res);
 
-    bool SetWalkKickLeft(std_srvs::SetBool::Request& req,
-                         std_srvs::SetBool::Response& res);
+    bool DoLeftKick(std_srvs::Trigger::Request& req,
+                    std_srvs::Trigger::Response& res);
 
-    bool SetWalkKickRight(std_srvs::SetBool::Request& req,
-                          std_srvs::SetBool::Response& res);
+    bool DoRightKick(std_srvs::Trigger::Request& req,
+                     std_srvs::Trigger::Response& res);
+
+    bool DoStandFront(std_srvs::Trigger::Request& req,
+                      std_srvs::Trigger::Response& res);
+
+    bool DoStandBack(std_srvs::Trigger::Request& req,
+                     std_srvs::Trigger::Response& res);
+
+    bool DoWalkKickLeft(std_srvs::Trigger::Request& req,
+                        std_srvs::Trigger::Response& res);
+
+    bool DoWalkKickRight(std_srvs::Trigger::Request& req,
+                         std_srvs::Trigger::Response& res);
 
     bool SetTorqueEnable(std_srvs::SetBool::Request& req,
                          std_srvs::SetBool::Response& res);
@@ -120,6 +132,8 @@ public:
     void publishOdometry();
 
     void cmdVelCb(geometry_msgs::Twist msg);
+
+    void headPosCb(sensor_msgs::JointState msg);
 
     void imuCb(sensor_msgs::Imu msg);
 
@@ -227,6 +241,7 @@ public:
     ros::Publisher _pubDebugMarker;
 
     ros::Subscriber _subCmdVel;
+    ros::Subscriber _subHeadPos;
     ros::Subscriber _subRobState;
     ros::Subscriber _subJointStates;
     ros::Subscriber _subKick;
@@ -239,8 +254,12 @@ public:
     ros::ServiceServer _set_head_move_valid_service;
     ros::ServiceServer _set_sensor_enable_valid_service;
     ros::ServiceServer _set_special_gait_valid_service;
-    ros::ServiceServer _set_walk_kick_left_service;
-    ros::ServiceServer _set_walk_kick_right_service;
+    ros::ServiceServer _do_left_kick_service;
+    ros::ServiceServer _do_right_kick_service;
+    ros::ServiceServer _do_stand_front_service;
+    ros::ServiceServer _do_stand_back_service;
+    ros::ServiceServer _do_walk_kick_left_service;
+    ros::ServiceServer _do_walk_kick_right_service;
     ros::ServiceServer _set_torque_enable_service;
     ros::ServiceServer _set_gait_valid_service;
     ros::ServiceServer _reset_odometry_service;

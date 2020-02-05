@@ -1,5 +1,10 @@
 #include "bitbots_quintic_walk/QuinticWalkingNode.hpp"
 
+constexpr int kDoLeftKick = 0;
+constexpr int kDoRightKick = 1;
+constexpr int kDoStandFront = 2;
+constexpr int kDoStandBack = 3;
+
 QuinticWalkingNode::QuinticWalkingNode()
     : _robot_model_loader("/robot_description", false),
       _special_gait_pending(false),
@@ -31,6 +36,9 @@ QuinticWalkingNode::QuinticWalkingNode()
     _pubSupport = _nh.advertise<std_msgs::Char>("walk_support_state", 1);
     _subCmdVel = _nh.subscribe("cmd_vel", 1, &QuinticWalkingNode::cmdVelCb, this,
                                ros::TransportHints().tcpNoDelay());
+    _subHeadPos =
+        _nh.subscribe("head_pos", 1, &QuinticWalkingNode::headPosCb, this,
+                      ros::TransportHints().tcpNoDelay());
     _subRobState =
         _nh.subscribe("robot_state", 1, &QuinticWalkingNode::robStateCb, this,
                       ros::TransportHints().tcpNoDelay());
@@ -94,10 +102,18 @@ QuinticWalkingNode::QuinticWalkingNode()
         "set_sensor_enable_valid", &QuinticWalkingNode::SetSensorEnableValid, this);
     _set_special_gait_valid_service = _nh.advertiseService(
         "set_special_gait_valid", &QuinticWalkingNode::SetSpecialGaitValid, this);
-    _set_walk_kick_left_service = _nh.advertiseService(
-        "set_walk_kick_left", &QuinticWalkingNode::SetWalkKickLeft, this);
-    _set_walk_kick_right_service = _nh.advertiseService(
-        "set_walk_kick_right", &QuinticWalkingNode::SetWalkKickRight, this);
+    _do_left_kick_service = _nh.advertiseService(
+        "do_left_kick", &QuinticWalkingNode::DoLeftKick, this);
+    _do_right_kick_service = _nh.advertiseService(
+        "do_right_kick", &QuinticWalkingNode::DoRightKick, this);
+    _do_stand_front_service = _nh.advertiseService(
+        "do_stand_front", &QuinticWalkingNode::DoStandFront, this);
+    _do_stand_back_service = _nh.advertiseService(
+        "do_stand_back", &QuinticWalkingNode::DoStandBack, this);
+    _do_walk_kick_left_service = _nh.advertiseService(
+        "do_walk_kick_left", &QuinticWalkingNode::DoWalkKickLeft, this);
+    _do_walk_kick_right_service = _nh.advertiseService(
+        "do_walk_kick_right", &QuinticWalkingNode::DoWalkKickRight, this);
     _set_torque_enable_service = _nh.advertiseService(
         "set_torque_enable", &QuinticWalkingNode::SetTorqueEnable, this);
     _set_gait_valid_service = _nh.advertiseService(
@@ -117,7 +133,10 @@ QuinticWalkingNode::QuinticWalkingNode()
         "get_walk_kick_pending", &QuinticWalkingNode::GetWalkKickPending, this);
 
     // initilize DSP handler
-    _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");
+    if (_simulation_active)
+      _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2", true);
+    else
+      _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");
     _dsp_handler->Init();
     _dsp_handler->SetVelocity(0., 0., 0.);
     _dsp_handler->SetHeadPos(0., 0.);
@@ -280,6 +299,12 @@ void QuinticWalkingNode::cmdVelCb(const geometry_msgs::Twist msg) {
                  msg.linear.x, msg.linear.y, msg.angular.z, msg.linear.x + msg.linear.y, _max_step[0] / factor,
                  _max_step[1] / factor, _max_step[2] / factor, _max_step_xy / factor);
     }
+}
+
+void QuinticWalkingNode::headPosCb(const sensor_msgs::JointState msg) {
+    // we use only 2 values from the JointState position messages, position[0, 1] as pitch, yaw in rad
+    _headPos[0] = msg.position[0];
+    _headPos[1] = msg.position[1];
 }
 
 void QuinticWalkingNode::imuCb(const sensor_msgs::Imu msg) {
@@ -897,92 +922,158 @@ void QuinticWalkingNode::initializeEngine() {
 
 bool QuinticWalkingNode::SetHeadMoveValid(std_srvs::SetBool::Request& req,
                                           std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service SetHeadMoveValid: " << req.data << std::endl;
   _dsp_handler->SetHeadMoveValid(req.data);
   res.success = true;
+  std::cout << "Call Service SetHeadMoveValid Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::SetSensorEnableValid(
     std_srvs::SetBool::Request& req, std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service SetSensorEnableValid: " << req.data << std::endl;
   _dsp_handler->SetSensorEnableValid(req.data);
   res.success = true;
+  std::cout << "Call Service SetSensorEnableValid Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::ResetOdometry(std_srvs::SetBool::Request& req,
                                        std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service ResetOdometry: " << req.data << std::endl;
   _dsp_handler->ResetOdometry(req.data);
   _odometry_reset_pending = true;
   res.success = true;
+  std::cout << "Call Service ResetOdometry Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::SetSpecialGaitValid(
     std_srvs::SetBool::Request& req, std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service SetSpecialGaitValid: " << req.data << std::endl;
   _dsp_handler->SetSpecialGaitValid(req.data);
   _special_gait_pending = true;
   res.success = true;
+  std::cout << "Call Service SetSpecialGaitValid Done" << std::endl;
   return true;
 }
 
-bool QuinticWalkingNode::SetWalkKickLeft(std_srvs::SetBool::Request& req,
-                                         std_srvs::SetBool::Response& res) {
-  _dsp_handler->SetWalkKickLeft(req.data);
-  _walk_kick_pending = true;
+bool QuinticWalkingNode::DoLeftKick(std_srvs::Trigger::Request& req,
+                                    std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service DoLeftKick" << std::endl;
+  _dsp_handler->SetSpecialGaitId(kDoLeftKick);
   res.success = true;
+  std::cout << "Call Service DoLeftKick Done" << std::endl;
   return true;
 }
 
-bool QuinticWalkingNode::SetWalkKickRight(std_srvs::SetBool::Request& req,
-                                          std_srvs::SetBool::Response& res) {
-  _dsp_handler->SetWalkKickRight(req.data);
+bool QuinticWalkingNode::DoRightKick(std_srvs::Trigger::Request& req,
+                                     std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service DoRightKick" << std::endl;
+  _dsp_handler->SetSpecialGaitId(kDoRightKick);
+  res.success = true;
+  std::cout << "Call Service DoRightKick Done" << std::endl;
+  return true;
+}
+
+bool QuinticWalkingNode::DoStandFront(std_srvs::Trigger::Request& req,
+                                      std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service DoStandFront" << std::endl;
+  _dsp_handler->SetSpecialGaitId(kDoStandFront);
+  res.success = true;
+  std::cout << "Call Service DoStandFront Done" << std::endl;
+  return true;
+}
+
+bool QuinticWalkingNode::DoStandBack(std_srvs::Trigger::Request& req,
+                                     std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service DoStandBack" << std::endl;
+  _dsp_handler->SetSpecialGaitId(kDoStandBack);
+  res.success = true;
+  std::cout << "Call Service DoStandBack Done" << std::endl;
+  return true;
+}
+
+bool QuinticWalkingNode::DoWalkKickLeft(std_srvs::Trigger::Request& req,
+                                        std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service DoWalkKickLeft" << std::endl;
+  _dsp_handler->DoWalkKickLeft(true);
   _walk_kick_pending = true;
   res.success = true;
+  std::cout << "Call Service DoWalkKickLeft Done" << std::endl;
+  return true;
+}
+
+bool QuinticWalkingNode::DoWalkKickRight(std_srvs::Trigger::Request& req,
+                                         std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service DoWalkKickRight" << std::endl;
+  _dsp_handler->DoWalkKickRight(true);
+  _walk_kick_pending = true;
+  res.success = true;
+  std::cout << "Call Service DoWalkKickRight Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::SetTorqueEnable(std_srvs::SetBool::Request& req,
                                          std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service SetTorqueEnable: " << req.data << std::endl;
   _dsp_handler->SetTorqueEnable(req.data);
   res.success = true;
+  std::cout << "Call Service SetTorqueEnable Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::SetGaitValid(std_srvs::SetBool::Request& req,
                                       std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service SetGaitValid: " << req.data << std::endl;
   _dsp_handler->SetGaitValid(req.data);
   res.success = true;
+  std::cout << "Call Service SetGaitValid Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::ResetGait(std_srvs::SetBool::Request& req,
                                    std_srvs::SetBool::Response& res) {
+  std::cout << "Call Service ResetGait: " << req.data << std::endl;
   _dsp_handler->ResetGait(req.data);
   res.success = true;
+  std::cout << "Call Service ResetGait Done" << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::GetSpecialGaitPending(
     std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service GetSpecialGaitPending" << std::endl;
   res.success = _special_gait_pending;
+  std::cout << "Call Service GetSpecialGaitPending Done " << res.success
+            << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::GetOdometryResetPending(
     std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service GetOdometryResetPending" << std::endl;
   res.success = _odometry_reset_pending;
+  std::cout << "Call Service GetOdometryResetPending Done " << res.success
+            << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::GaitResetPending(
     std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service GaitResetPending" << std::endl;
   res.success = _gait_reset_pending;
+  std::cout << "Call Service GaitResetPending Done " << res.success
+            << std::endl;
   return true;
 }
 
 bool QuinticWalkingNode::GetWalkKickPending(
     std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res) {
+  std::cout << "Call Service GetWalkKickPending" << std::endl;
   res.success = _walk_kick_pending;
+  std::cout << "Call Service GetWalkKickPending Done " << res.success
+            << std::endl;
   return true;
 }
 
@@ -997,8 +1088,8 @@ void QuinticWalkingNode::ClearDspValidState() {
   _dsp_handler->SetSpecialGaitValid(false);
   _dsp_handler->ResetGait(false);
   _dsp_handler->ResetOdometry(false);
-  _dsp_handler->SetWalkKickLeft(false);
-  _dsp_handler->SetWalkKickRight(false);
+  _dsp_handler->DoWalkKickLeft(false);
+  _dsp_handler->DoWalkKickRight(false);
 }
 
 void QuinticWalkingNode::GetDataFromDsp() {
@@ -1009,7 +1100,7 @@ void QuinticWalkingNode::GetDataFromDsp() {
   _walk_kick_pending = pending_states[3];
 
   _real_velocities = _dsp_handler->GetVelocity();
-  std::cout << "real velocity: " << _real_velocities.transpose() << std::endl;
+  // std::cout << "real velocity: " << _real_velocities.transpose() << std::endl;
 
   _real_head_pos = _dsp_handler->GetHeadPos();
 

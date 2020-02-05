@@ -3,6 +3,7 @@
   <arg name="minibot" default="false"/>
   <arg name="wolfgang" default="false"/>
   <arg name="use_game_settings" default="false"/>
+  <param name="simulation_active" value="true"/>
 
   <group if="$(arg sim)">
     <rosparam file="$(find bitbots_quintic_walk)/config/walking_wolfgang_simulator.yaml" command="load"/>
