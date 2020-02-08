@@ -1,6 +1,7 @@
 <?xml version="1.0"?>
 <launch>
     <arg name="sim" default="false"/>
+    <arg name="fake_mode" default="true"/>
 
     <include file="$(find bitbots_bringup)/launch/load_robot_description.launch">
  
@@ -8,5 +9,6 @@
 
     <include file="$(find bitbots_quintic_walk)/launch/quintic_walk.launch">
         <arg name="sim" value="$(arg sim)"/>
+        <arg name="fake_mode" value="$(arg fake_mode)"/>
     </include>
 </launch>

@@ -26,6 +26,7 @@ QuinticWalkingNode::QuinticWalkingNode()
     _nh.param<double>("engineFrequency", _engineFrequency, 100.0);
     _nh.param<bool>("/simulation_active", _simulation_active, false);
     _nh.param<bool>("/walking/publishOdomTF", _publishOdomTF, false);
+    _nh.param<bool>("/walking/fake_mode", _fake_mode, false);
 
     /* init publisher and subscriber */
     _command_msg = bitbots_msgs::JointCommand();
@@ -133,7 +134,7 @@ QuinticWalkingNode::QuinticWalkingNode()
         "get_walk_kick_pending", &QuinticWalkingNode::GetWalkKickPending, this);
 
     // initilize DSP handler
-    if (_simulation_active)
+    if (_fake_mode)
       _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2", true);
     else
       _dsp_handler = std::make_shared<DspSDK::DspHandler>("/dev/ttyTHS2");

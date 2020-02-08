@@ -157,6 +157,7 @@ public:
     void ClearDspValidState();
     void GetDataFromDsp();
 
+    bool _fake_mode;
     bool _debugActive;
     bool _simulation_active;
 

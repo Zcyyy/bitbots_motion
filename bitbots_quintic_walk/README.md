@@ -4,6 +4,12 @@
 2. Subscribes to topic /head_pos for head pitch/yaw control
 3. Provides services for special gait control
 
+### Example
+Set fake_mode in launch file to true will run without hardware
+```bash
+$ roslaunch bitbots_quintic_walk quintic_walk_standalone.launch
+```
+
 ### Usage
 **Subscribed Topics:**
 
