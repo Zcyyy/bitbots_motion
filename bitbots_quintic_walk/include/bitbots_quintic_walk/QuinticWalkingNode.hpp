@@ -10,38 +10,45 @@ https://github.com/Rhoban/model/
 #include <string>
 #include <Eigen/Dense>
 #include <chrono>
+#include <stdexcept>
+#include <exception>
 
 #include <ros/ros.h>
 
 #include <geometry_msgs/Twist.h>
 #include <geometry_msgs/Pose.h>
 #include <geometry_msgs/PointStamped.h>
+#include <geometry_msgs/Vector3.h>
 #include <visualization_msgs/Marker.h>
 #include <std_msgs/String.h>
 #include <std_msgs/Float64.h>
 #include <std_msgs/Char.h>
-#include <sensor_msgs/JointState.h>
-#include <sensor_msgs/Imu.h>
+#include <bitbots_msgs/Imu.h>
 #include <nav_msgs/Odometry.h>
 #include <std_srvs/SetBool.h>
 #include <std_srvs/Trigger.h>
-#include <moveit_msgs/RobotState.h>
+//#include <moveit_msgs/RobotState.h>
 #include <humanoid_league_msgs/RobotControlState.h>
 #include <bitbots_quintic_walk/WalkingDebug.h>
 #include <bitbots_msgs/JointCommand.h>
 #include <bitbots_msgs/FootPressure.h>
+#include <bitbots_msgs/Fallcheck.h>
+#include <bitbots_msgs/SpecialGait.h>
 
 #include <dynamic_reconfigure/server.h>
 #include <eigen_conversions/eigen_msg.h>
 #include <tf/transform_datatypes.h>
 #include <tf/transform_broadcaster.h>
-#include <moveit/robot_model_loader/robot_model_loader.h>
-#include <moveit/kinematics_base/kinematics_base.h>
-#include <moveit/move_group_interface/move_group_interface.h>
+#include <tf2_ros/transform_broadcaster.h>
+#include <tf2/LinearMath/Quaternion.h>
+#include <geometry_msgs/TransformStamped.h>
+//#include <moveit/robot_model_loader/robot_model_loader.h>
+//#include <moveit/kinematics_base/kinematics_base.h>
+//#include <moveit/move_group_interface/move_group_interface.h>
 
 #include <bitbots_quintic_walk/bitbots_quintic_walk_paramsConfig.h>
-#include "bitbots_ik/AnalyticIKSolver.hpp"
-#include "bitbots_ik/BioIKSolver.hpp"
+//#include "bitbots_ik/AnalyticIKSolver.hpp"
+//#include "bitbots_ik/BioIKSolver.hpp"
 #include "bitbots_quintic_walk/WalkEngine.hpp"
 #include "DspSDK/DspHandler.h"
 #include <std_msgs/Bool.h>
@@ -77,27 +84,32 @@ public:
     bool ResetOdometry(std_srvs::SetBool::Request& req,
                        std_srvs::SetBool::Response& res);
 
-    bool SetSpecialGaitValid(std_srvs::SetBool::Request& req,
-                             std_srvs::SetBool::Response& res);
+    bool SetSpecialGaitValid(bitbots_msgs::SpecialGait::Request& req,bitbots_msgs::SpecialGait::Response& res);
 
-    bool DoLeftKick(std_srvs::Trigger::Request& req,
-                    std_srvs::Trigger::Response& res);
+/*    bool DoLeftKick(std_srvs::SetBool::Request& req,
+                    std_srvs::SetBool::Response& res);
 
-    bool DoRightKick(std_srvs::Trigger::Request& req,
-                     std_srvs::Trigger::Response& res);
+    bool DoRightKick(std_srvs::SetBool::Request& req,
+                     std_srvs::SetBool::Response& res);
 
-    bool DoStandFront(std_srvs::Trigger::Request& req,
-                      std_srvs::Trigger::Response& res);
+    bool DoStandFront(std_srvs::SetBool::Request& req,
+                      std_srvs::SetBool::Response& res);
 
-    bool DoStandBack(std_srvs::Trigger::Request& req,
-                     std_srvs::Trigger::Response& res);
+    bool DoStandBack(std_srvs::SetBool::Request& req,
+                     std_srvs::SetBool::Response& res);
+
+    bool DoLeftSave(std_srvs::SetBool::Request& req,
+                        std_srvs::SetBool::Response& res);
+
+    bool DoRightSave(std_srvs::SetBool::Request& req,
+                         std_srvs::SetBool::Response& res);
 
     bool DoWalkKickLeft(std_srvs::Trigger::Request& req,
-                        std_srvs::Trigger::Response& res);
+                         std_srvs::Trigger::Response& res);
 
     bool DoWalkKickRight(std_srvs::Trigger::Request& req,
                          std_srvs::Trigger::Response& res);
-
+*/
     bool SetTorqueEnable(std_srvs::SetBool::Request& req,
                          std_srvs::SetBool::Response& res);
 
@@ -130,18 +142,20 @@ public:
     void publishMarkers();
 
     void publishOdometry();
+    void publishImuAngle();
 
     void cmdVelCb(geometry_msgs::Twist msg);
+    void Fallen(bitbots_msgs::Fallcheck msg);
 
-    void headPosCb(sensor_msgs::JointState msg);
+    void headPosCb(bitbots_msgs::JointCommand msg);
 
-    void imuCb(sensor_msgs::Imu msg);
+    void imuCb(bitbots_msgs::Imu msg);
 
     void pressureCb(bitbots_msgs::FootPressure msg);
 
     void robStateCb(humanoid_league_msgs::RobotControlState msg);
 
-    void jointStateCb(sensor_msgs::JointState msg);
+    //void jointStateCb(sensor_msgs::JointState msg);
 
     void kickCb(std_msgs::BoolConstPtr msg);
 
@@ -205,6 +219,7 @@ public:
 
     Eigen::Vector3d _real_velocities;
     Eigen::Vector3d _real_odometry;
+    Eigen::Vector3d odom;
     Eigen::Vector3d _imu_angle;
     Eigen::Vector2d _real_head_pos;
     Eigen::Matrix<double, 7, 1> _real_body_pos;
@@ -229,19 +244,31 @@ public:
     bitbots_quintic_walk::QuinticWalk _walkEngine;
 
     bitbots_msgs::JointCommand _command_msg;
+    bitbots_msgs::Fallcheck _whitch_stand;
     nav_msgs::Odometry _odom_msg;
+    bitbots_msgs::Imu Imu_Angle;
     geometry_msgs::TransformStamped _odom_trans;
-
+    geometry_msgs::TransformStamped _neck_to_head;
+    geometry_msgs::TransformStamped _head_to_camera;
+    
+    int first_time;
+    int first_stand;
+    int can_head_move;
+    double x,y,z;
     ros::NodeHandle _nh;
 
     ros::Publisher _pubControllerCommand;
     ros::Publisher _pubOdometry;
+    ros::Publisher _pubImuAngle;
     ros::Publisher _pubSupport;
     tf::TransformBroadcaster _odom_broadcaster;
+    tf2_ros::TransformBroadcaster _head_to_camera_trans;
+    tf2_ros::TransformBroadcaster _neck_to_head_trans;
     ros::Publisher _pubDebug;
     ros::Publisher _pubDebugMarker;
 
     ros::Subscriber _subCmdVel;
+    ros::Subscriber _fall;
     ros::Subscriber _subHeadPos;
     ros::Subscriber _subRobState;
     ros::Subscriber _subJointStates;
@@ -259,6 +286,8 @@ public:
     ros::ServiceServer _do_right_kick_service;
     ros::ServiceServer _do_stand_front_service;
     ros::ServiceServer _do_stand_back_service;
+    ros::ServiceServer _do_left_save_service;
+    ros::ServiceServer _do_right_save_service;
     ros::ServiceServer _do_walk_kick_left_service;
     ros::ServiceServer _do_walk_kick_right_service;
     ros::ServiceServer _set_torque_enable_service;
@@ -275,17 +304,17 @@ public:
     geometry_msgs::PointStamped _cop_r;
 
     // MoveIt!
-    robot_model_loader::RobotModelLoader _robot_model_loader;
+    /*robot_model_loader::RobotModelLoader _robot_model_loader;
     robot_model::RobotModelPtr _kinematic_model;
     robot_state::RobotStatePtr _goal_state;
     robot_state::RobotStatePtr _current_state;
     const robot_state::JointModelGroup *_all_joints_group;
     const robot_state::JointModelGroup *_legs_joints_group;
     const robot_state::JointModelGroup *_lleg_joints_group;
-    const robot_state::JointModelGroup *_rleg_joints_group;
+    const robot_state::JointModelGroup *_rleg_joints_group;*/
 
     // IK solver
-    bitbots_ik::BioIKSolver _bioIK_solver;
+    //bitbots_ik::BioIKSolver _bioIK_solver;
     std::shared_ptr<DspSDK::DspHandler> _dsp_handler;
 };
 

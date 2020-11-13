@@ -6,7 +6,7 @@ imu (rX, rY)
 
 #include <ros/ros.h>
 #include <ros/console.h>
-#include <sensor_msgs/Imu.h>
+#include <bitbots_msgs/Imu.h>
 #include <tf2_ros/transform_broadcaster.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.h>
 #include <geometry_msgs/TransformStamped.h>
@@ -23,13 +23,13 @@ class OdometryFuser
 public:
     OdometryFuser();
 private:
-    sensor_msgs::Imu _imu_data;
+    bitbots_msgs::Imu _imu_data;
     nav_msgs::Odometry _odom_data;
     ros::Time _imu_update_time;
     ros::Time _odom_update_time;
     geometry_msgs::TransformStamped tf;
 
-    void imuCallback(const sensor_msgs::Imu msg);
+    void imuCallback(const bitbots_msgs::Imu msg);
     void odomCallback(const nav_msgs::Odometry msg);
 };
 
@@ -40,7 +40,6 @@ OdometryFuser::OdometryFuser()
     tf2::Quaternion dummy_orientation;
     dummy_orientation.setRPY(0, 0, 0);
     _odom_data.pose.pose.orientation = tf2::toMsg(dummy_orientation);
-    _imu_data.orientation = tf2::toMsg(dummy_orientation);
 
     ros::Subscriber imu_subscriber = n.subscribe("/imu/data", 1, &OdometryFuser::imuCallback, this);
     ros::Subscriber odom_subscriber = n.subscribe("/walk_odometry", 1, &OdometryFuser::odomCallback, this);
@@ -59,45 +58,20 @@ OdometryFuser::OdometryFuser()
     {
         ros::spinOnce();
         
-        imu_delta_t = ros::Time::now() - _imu_update_time;
 
         bool imu_active = true;
-        if (imu_delta_t.toSec() > 0.05)
-        {
-            ROS_WARN_THROTTLE(msg_rate, "IMU message outdated!");
-            imu_active = false;
-        }
 
-
-        ros::Duration odom_delta_t = ros::Time::now() - _odom_update_time;
-
-        bool odom_active = false;
-        if (odom_delta_t.toSec() > 0.05)
-        {
-            ROS_WARN_THROTTLE(msg_rate, "Odom message outdated!");
-            odom_active = false;
-        }
-        
+        bool odom_active = true;
 
         if (imu_active || odom_active)
         {
             double placeholder, imu_roll, imu_pitch, walking_yaw;
-
-            // get roll an pitch from imu
-            tf2::Quaternion imu_orientation;
-            tf2::fromMsg(_imu_data.orientation, imu_orientation);
-            tf2::Matrix3x3 imu_rotation_matrix(imu_orientation);
-            imu_rotation_matrix.getRPY(imu_roll, imu_pitch, placeholder);
-
-            // get yaw from walking odometry
-            tf2::Quaternion odom_orientation;
-            tf2::fromMsg(_odom_data.pose.pose.orientation, odom_orientation);
-            tf2::Matrix3x3 odom_rotation_matrix(odom_orientation);
-            odom_rotation_matrix.getRPY(placeholder, placeholder, walking_yaw);
-
+	    imu_roll = _imu_data.x;
+	    imu_pitch = _imu_data.y;
+	    walking_yaw = _odom_data.twist.twist.angular.z;
             // combine orientations to new quaternion
             tf2::Quaternion new_orientation;
-            new_orientation.setRPY(-imu_roll, -imu_pitch, walking_yaw);
+            new_orientation.setRPY(imu_roll, imu_pitch, walking_yaw);
 
             // combine it all into a tf
             tf.header.stamp = _imu_data.header.stamp;
@@ -118,7 +92,7 @@ OdometryFuser::OdometryFuser()
     }
 }
 
-void OdometryFuser::imuCallback(const sensor_msgs::Imu msg)
+void OdometryFuser::imuCallback(const bitbots_msgs::Imu msg)
 {
     _imu_data = msg;
     _imu_update_time = ros::Time::now();

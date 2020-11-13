@@ -12,10 +12,8 @@ find_package(catkin REQUIRED COMPONENTS
   eigen_conversions
   tf
   tf_conversions
-  bio_ik
   moveit_core
   moveit_ros_move_group  
-  bitbots_ik
   bitbots_splines  
   message_generation
   message_runtime
@@ -50,7 +48,7 @@ generate_messages(
 catkin_package(
         INCLUDE_DIRS include
         LIBRARIES ${PROJECT_NAME}
-        CATKIN_DEPENDS humanoid_league_msgs std_msgs geometry_msgs bitbots_ik bitbots_splines message_runtime dsp_sdk
+        CATKIN_DEPENDS humanoid_league_msgs std_msgs geometry_msgs bitbots_splines message_runtime dsp_sdk
         DEPENDS EIGEN3 
 )
 
